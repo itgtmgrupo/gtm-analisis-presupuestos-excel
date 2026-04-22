@@ -1125,7 +1125,7 @@ API_FOLDERS_URL = "/api/GetFolders";
 API_EXCEL_URL = "/api/GetExcel?year=";
 
 async fetchSPFolders() {
-
+const statusEl = document.getElementById('spStatusMsg');
 statusEl.textContent = "Consultando API…";
 statusEl.style.color = "#64748b";
 
