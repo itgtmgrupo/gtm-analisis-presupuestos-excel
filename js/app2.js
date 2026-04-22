@@ -1201,7 +1201,7 @@ class Dashboard {
             selectorEl.innerHTML = '<option value="">Fallo de conexión</option>';
             // COMENTADO CODIGO ORIGINAL statusEl.textContent = `Modo Local Detectado (CORS) o Fallo Auth. Esto solo funciona si el HTML está subido a SharePoint.`;
             // INICIO NUEVO CODIGO
-            
+            statusEl.textContent = "No se pudo acceder a SharePoint desde este origen (CORS/Auth).";
             // FIN NUEVO CODIGO
             statusEl.style.color = "#ef4444";
         }
