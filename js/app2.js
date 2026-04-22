@@ -1121,23 +1121,6 @@ class Dashboard {
 	API_FOLDERS_URL = "/api/GetFolders";
 	API_EXCEL_URL = "/api/GetExcel?year=";
 
-    async fetchSPFolders() {
-// --- API intermedia (Azure Functions en SWA) ---;
-      if (!year) {
-        alert("Por favor, selecciona un año en el desplegable.");
-        return;
-      }
-      this.fetchSPExcel(year);
-    };
-
-  } catch (error) {
-    console.error(error);
-    selectorEl.innerHTML = 'Fallo de conexión';
-    statusEl.textContent = `Error accediendo a la API intermedia: ${error.message}`;
-    statusEl.style.color = "#ef4444";
-  }
-}
-``
 API_FOLDERS_URL = "/api/GetFolders";
 API_EXCEL_URL = "/api/GetExcel?year=";
 
