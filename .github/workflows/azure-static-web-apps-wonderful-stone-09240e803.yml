@@ -17,6 +17,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Preflight - show workspace
+        run: |
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          pwd
+          ls -la
+          echo "---- tree (2 niveles) ----"
+          find . -maxdepth 2 -type f | sed 's|^\./||'
 
       - name: Build and Deploy
         uses: Azure/static-web-apps-deploy@v1
