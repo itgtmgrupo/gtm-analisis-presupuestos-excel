@@ -27,3 +27,5 @@ jobs:
           app_location: "."
           api_location: ""
           output_location: ""
+          app_build_command: ""
+          production_branch: "produccion"
