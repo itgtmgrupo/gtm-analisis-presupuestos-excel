@@ -1126,6 +1126,9 @@ API_EXCEL_URL = "/api/GetExcel?year=";
 
 async fetchSPFolders() {
 
+statusEl.textContent = "Consultando API…";
+statusEl.style.color = "#64748b";
+
   const statusEl = document.getElementById('spStatusMsg');
   const selectorEl = document.getElementById('spYearSelector');
   const btnEl = document.getElementById('btnLoadFromSP');
