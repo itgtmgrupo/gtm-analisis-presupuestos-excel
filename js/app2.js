@@ -27,25 +27,7 @@ class Dashboard {
     init() {
         this.renderFilters();
         this.attachEventListeners();
-        // MODIFICADO POR EL SIGUIENTE CODIGO this.fetchSPFolders(); // Empezar a buscar las carpetas en SP nada más cargar
-        // INICIO NUEVO CODIGO
-        if (this.isRunningOnSharePoint()) {
-            this.fetchSPFolders();
-        } else {
-            // No intentes SP REST fuera de SharePoint (evita CORS/Auth)
-            const statusEl = document.getElementById('spStatusMsg');
-            const selectorEl = document.getElementById('spYearSelector');
-            const btnEl = document.getElementById('btnLoadFromSP');
-
-            if (selectorEl) selectorEl.setAttribute('disabled', 'true');
-            if (btnEl) btnEl.setAttribute('disabled', 'true');
-
-            if (statusEl) {
-                statusEl.textContent = "Modo Web (Azure): carga desde SharePoint vía REST deshabilitada. Usa la carga local o habilita modo Graph/API.";
-                statusEl.style.color = "#64748b";
-            }
-        }
-        //FIN NUEVO CODIGO
+        this.fetchSPFolders(); // Empezar a buscar las carpetas en SP nada más cargar
         this.update();
     }
 
@@ -1199,10 +1181,7 @@ class Dashboard {
         } catch (error) {
             console.error(error);
             selectorEl.innerHTML = '<option value="">Fallo de conexión</option>';
-            // COMENTADO CODIGO ORIGINAL statusEl.textContent = `Modo Local Detectado (CORS) o Fallo Auth. Esto solo funciona si el HTML está subido a SharePoint.`;
-            // INICIO NUEVO CODIGO
-            statusEl.textContent = "No se pudo acceder a SharePoint desde este origen (CORS/Auth).";
-            // FIN NUEVO CODIGO
+            statusEl.textContent = `Modo Local Detectado (CORS) o Fallo Auth. Esto solo funciona si el HTML está subido a SharePoint.`;
             statusEl.style.color = "#ef4444";
         }
     }
