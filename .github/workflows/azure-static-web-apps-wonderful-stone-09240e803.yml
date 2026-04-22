@@ -17,6 +17,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Debug workspace
+        run: |
+        echo "PWD:"
+        pwd
+        echo "Root files:"
+        ls -la
+        echo "--- Tree (2 niveles) ---"
+        find . -maxdepth 2 -type f
+
       - name: Preflight - show workspace
         run: |
           echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
