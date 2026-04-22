@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Dashboard Presupuesto 2026 | Grupo GTM</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+</head>
+
+<body class="light-mode">
+    <div class="app-container">
+        <!-- Sidebar Filters -->
+        <aside class="sidebar">
+            <div class="logo-container"
+                style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 15px;">
+                <img src="logo GTM.png" alt="GTM Logo"
+                    onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\\\'http://www.w3.org/2000/svg\\\' width=\\\'120\\\' height=\\\'40\\\'><rect width=\\\'120\\\' height=\\\'40\\\' fill=\\\'#1e3a8a\\\'/></svg>'"
+                    style="width: 140px; height: auto;">
+                <p class="subtitle"
+                    style="font-weight: 600; font-size: 0.85rem; color: var(--primary); margin-top: 5px;">Control
+                    Presupuestario 2026</p>
+            </div>
+
+            <div class="filter-group">
+                <label>Año de Presupuesto (SharePoint)</label>
+                <div style="display: flex; gap: 6px; flex-direction: column;">
+                    <select id="spYearSelector" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border); color: #000;" disabled>
+                        <option value="">Detectando carpetas SP...</option>
+                    </select>
+                    <button id="btnLoadFromSP" class="btn" style="width: 100%; cursor: not-allowed; opacity: 0.6;" disabled>Cargar Datos</button>
+                </div>
+                <div id="spStatusMsg" style="font-size: 0.75rem; margin-top: 5px; color: #64748b;">Conectando a Microsoft 365...</div>
+            </div>
+
+            <div class="filter-group">
+                <label>Buscador</label>
+                <input type="text" id="companySearch" placeholder="Empresa...">
+            </div>
+
+            <div class="filter-group">
+                <label>Área de Negocio</label>
+                <div id="areaFilter" class="custom-select-group">
+                    <!-- Dynamic -->
+                </div>
+            </div>
+
+            <div class="filter-group">
+                <label>Empresa</label>
+                <div id="companyFilter" class="custom-select-group scrollable">
+                    <!-- Dynamic -->
+                </div>
+            </div>
+
+            <div class="filter-group">
+                <label>Mes de Cierre</label>
+                <select id="monthFilter" title="Seleccione el mes de cierre">
+                    <!-- Dynamic -->
+                </select>
+            </div>
+
+            <div class="sidebar-footer">
+                <p>v2.0 | Presupuesto VFINAL</p>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar">
+                <div class="breadcrumb">
+                    <span id="currentAreaName">Grupo Agregado</span> / <span id="currentCompanyName">Todas las Sociedades</span>
+                </div>
+                
+                <div class="comparison-toggles" style="display: flex; gap: 8px;">
+                    <button id="btn-comp-ppto" class="btn comp-btn active" style="font-size: 0.8rem; padding: 6px 14px;">Contra PPTO 2026</button>
+                    <button id="btn-comp-prev" class="btn comp-btn" style="font-size: 0.8rem; padding: 6px 14px; background: transparent; color: var(--text); border: 1px solid var(--border);">Contra mes anterior</button>
+                </div>
+
+                <div class="last-update">
+                    Cierre: <strong id="selectedMonthDisplay">Mayo 2026</strong>
+                </div>
+            </header>
+
+            <!-- KPI Row 1 -->
+            <section class="kpi-grid">
+                <div class="kpi-card" id="kpi-rai">
+                    <span class="kpi-label">Rtdo. Antes Impuestos</span>
+                    <div class="kpi-value-container">
+                        <span class="kpi-value">0,00M€</span>
+                        <div class="kpi-trend" data-type="profit">
+                            <span class="trend-icon">↑</span>
+                            <span class="trend-value">0,00%</span>
+                        </div>
+                    </div>
+                    <span class="kpi-sub">vs Presupuesto</span>
+                    <span class="kpi-sub-abs">0,00k€</span>
+                </div>
+                <div class="kpi-card" id="kpi-ebitda">
+                    <span class="kpi-label">EBITDA (sin gerenc.)</span>
+                    <div class="kpi-value-container">
+                        <span class="kpi-value">0,00M€</span>
+                        <div class="kpi-trend" data-type="profit">
+                            <span class="trend-icon">↑</span>
+                            <span class="trend-value">0,00%</span>
+                        </div>
+                    </div>
+                    <span class="kpi-sub">vs Presupuesto</span>
+                    <span class="kpi-sub-abs">0,00k€</span>
+                </div>
+                <div class="kpi-card" id="kpi-margen">
+                    <span class="kpi-label">Margen Bruto (%)</span>
+                    <div class="kpi-value-container">
+                        <span class="kpi-value">0,00%</span>
+                        <div class="kpi-trend" data-type="ratio">
+                            <span class="trend-icon">↑</span>
+                            <span class="trend-value">0,00%</span>
+                        </div>
+                    </div>
+                    <span class="kpi-sub">Eficiencia Directa</span>
+                    <span class="kpi-sub-abs"></span>
+                </div>
+                <div class="kpi-card" id="kpi-ventas">
+                    <span class="kpi-label">Ventas Totales</span>
+                    <div class="kpi-value-container">
+                        <span class="kpi-value">0,00M€</span>
+                        <div class="kpi-trend" data-type="income">
+                            <span class="trend-icon">↑</span>
+                            <span class="trend-value">0,00%</span>
+                        </div>
+                    </div>
+                    <span class="kpi-sub">vs Presupuesto</span>
+                    <span class="kpi-sub-abs">0,00k€</span>
+                </div>
+
+                <!-- KPI Row 2 -->
+                <div class="kpi-card" id="kpi-costes-estructura">
+                    <span class="kpi-label">Costes de Estructura</span>
+                    <div class="kpi-value-container">
+                        <span class="kpi-value">0,00M€</span>
+                        <div class="kpi-trend" data-type="expense">
+                            <span class="trend-icon">↓</span>
+                            <span class="trend-value">0,00%</span>
+                        </div>
+                    </div>
+                    <span class="kpi-sub">vs Presupuesto</span>
+                    <span class="kpi-sub-abs">0,00k€</span>
+                </div>
+                <div class="kpi-card" id="kpi-peso-estructura">
+                    <span class="kpi-label">Peso de la Estructura</span>
+                    <div class="kpi-value-container">
+                        <span class="kpi-value">0,00%</span>
+                        <!-- Custom sub text for this specific KPI -->
+                    </div>
+                    <span class="kpi-sub">sobre Ventas</span>
+                    <span class="kpi-sub-abs" id="peso-estructura-budget"></span>
+                </div>
+                <div class="kpi-card" id="kpi-variables">
+                    <span class="kpi-label">Variables</span>
+                    <div class="kpi-value-container">
+                        <span class="kpi-value">0,00M€</span>
+                        <div class="kpi-trend" data-type="expense">
+                            <span class="trend-icon">↓</span>
+                            <span class="trend-value">0,00%</span>
+                        </div>
+                    </div>
+                    <span class="kpi-sub">vs Presupuesto</span>
+                    <span class="kpi-sub-abs">0,00k€</span>
+                </div>
+                <div class="kpi-card" id="kpi-fidelizacion">
+                    <span class="kpi-label">Planes de Fidelización</span>
+                    <div class="kpi-value-container">
+                        <span class="kpi-value">0,00M€</span>
+                        <div class="kpi-trend" data-type="expense">
+                            <span class="trend-icon">↓</span>
+                            <span class="trend-value">0,00%</span>
+                        </div>
+                    </div>
+                    <span class="kpi-sub">vs Presupuesto</span>
+                    <span class="kpi-sub-abs">0,00k€</span>
+                </div>
+            </section>
+
+            <!-- View Toggles -->
+            <div class="view-toggles" style="display: flex; gap: 0.75rem; justify-content: center; margin-bottom: 24px; flex-wrap: wrap;">
+                <button id="btn-show-evoluc-sociedad" class="btn filter-btn active">Evoluc. Sociedad / Área</button>
+                <button id="btn-show-evoluc-meses" class="btn filter-btn">Evoluc. Meses</button>
+                <span style="width: 1px; background: var(--border); margin: 0 4px;"></span>
+                <button id="btn-show-detalle" class="btn filter-btn">Detalle por Indicador</button>
+                <button id="btn-show-matriz" class="btn filter-btn">Matriz por Sociedad / Área</button>
+                <button id="btn-show-variaciones" class="btn filter-btn">Mayores Variaciones</button>
+            </div>
+
+            <!-- Dashboard Grid -->
+            <div id="view-charts" class="dashboard-grid new-layout">
+
+                <!-- Row 1: Evolucion Mensual -->
+                <div class="chart-container large">
+                    <div class="chart-header">
+                        <h3>Evolución Mensual (vs Ppto) - Por Área</h3>
+                        <p>EBITDA s/g Acumulado/Mensual</p>
+                    </div>
+                    <div class="chart-body flex-2">
+                        <canvas id="evolucionAreaChart"></canvas>
+                    </div>
+                    <div id="table-evolucionArea" class="chart-data-table"></div>
+                </div>
+
+                <div class="chart-container large">
+                    <div class="chart-header">
+                        <h3>Evolución Mensual (vs Ppto) - Por Sociedad</h3>
+                        <p>EBITDA s/g Acumulado/Mensual</p>
+                    </div>
+                    <div class="chart-body flex-2">
+                        <canvas id="evolucionSociedadChart"></canvas>
+                    </div>
+                    <div id="table-evolucionSociedad" class="chart-data-table"></div>
+                </div>
+
+            </div>
+
+            <!-- Evoluc. Meses Charts -->
+            <div id="view-charts-meses" class="dashboard-grid new-layout" style="display: none;">
+
+                <div class="chart-container large">
+                    <div class="chart-header">
+                        <h3 id="meses-area-title">Evolución por Meses - Por Área</h3>
+                        <p>Acumulado mensual por área de negocio</p>
+                    </div>
+                    <div class="chart-body flex-2">
+                        <canvas id="evolucionMesesAreaChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-container large">
+                    <div class="chart-header">
+                        <h3 id="meses-sociedad-title">Evolución por Meses - Por Sociedad</h3>
+                        <p>Acumulado mensual por sociedad</p>
+                    </div>
+                    <div class="chart-body flex-2">
+                        <canvas id="evolucionMesesSociedadChart"></canvas>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Detailed Table -->
+            <section id="view-table-detalle" class="details-section" style="display: none;">
+                <div class="card detal-card">
+                    <div class="chart-header">
+                        <h3>Detalle por Indicador (Cierre Mensual)</h3>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="detailsTable">
+                            <thead>
+                                <tr>
+                                    <th>Indicador</th>
+                                    <th>Presupuesto</th>
+                                    <th>Real</th>
+                                    <th>Desv. Abs.</th>
+                                    <th>Desv. %</th>
+                                    <th>Impacto</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Dynamic -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Matrix Table -->
+            <section id="view-table-matriz" class="details-section" style="margin-top: 2rem; display: none;">
+                <div class="card detal-card">
+                    <div class="chart-header"
+                        style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h3>Matriz por Sociedad / Área</h3>
+                            <p>Desglose detallado de todos los indicadores por entidad</p>
+                        </div>
+                        <button id="matrixToggleBtn" class="filter-btn active" style="padding: 0.5rem 1rem;">Mostrar
+                            Desviación %</button>
+                    </div>
+                    <div class="table-wrapper" style="overflow-x: auto;">
+                        <table id="matrixTable" style="min-width: 1000px;">
+                            <thead>
+                                <!-- Dynamic headers -->
+                            </thead>
+                            <tbody>
+                                <!-- Dynamic body -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Top Movers Table -->
+            <section id="view-table-variaciones" class="details-section" style="margin-top: 2rem; display: none;">
+                <div class="card detal-card">
+                    <div class="chart-header">
+                        <h3>Mayores Variaciones (Top Movers)</h3>
+                        <p>Cambios más significativos del último mes respecto a presupuesto y mes anterior</p>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="topMoversTable">
+                            <thead>
+                                <tr>
+                                    <th>Sociedad</th>
+                                    <th>Indicador</th>
+                                    <th>Desv. Ppto (€)</th>
+                                    <th>Desv. Ppto (%)</th>
+                                    <th>Var. Mes Ant. (€)</th>
+                                    <th>Var. Mes Ant. (%)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Dynamic -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="js/data2.js"></script>
+    <script src="js/app2.js"></script>
+</body>
+
+</html>
