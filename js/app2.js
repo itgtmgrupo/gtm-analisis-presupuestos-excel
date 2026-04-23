@@ -1117,10 +1117,6 @@ class Dashboard {
         tbody.innerHTML = bodyHTML;
     }
 
-	// API intermedia (Azure Functions bajo /api)
-	API_FOLDERS_URL = "/api/GetFolders";
-	API_EXCEL_URL = "/api/GetExcel?year=";
-
 API_FOLDERS_URL = "/api/GetFolders";
 API_EXCEL_URL = "/api/GetExcel?year=";
 
