@@ -1140,7 +1140,10 @@ async fetchSPFolders() {
       if (response.status === 401 || response.status === 403) {
         throw new Error("Sin permisos (API). Revisa autenticación/roles en la Static Web App.");
       }
-      throw new Error(`Error API (GetFolders): HTTP ${response.status}`);
+      //throw new Error(`Error API (GetFolders): HTTP ${response.status}`);
+        let detail = "";
+        try { detail = await response.text(); } catch {}
+        throw new Error(`Error API (GetFolders): HTTP ${response.status}${detail ? " - " + detail : ""}`);
     }
 
     const folders = await response.json();
