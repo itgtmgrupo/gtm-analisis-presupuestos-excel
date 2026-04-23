@@ -27,7 +27,10 @@ class Dashboard {
     init() {
         this.renderFilters();
         this.attachEventListeners();
-        this.fetchSPFolders(); // Empezar a buscar las carpetas en SP nada más cargar
+        document.addEventListener("DOMContentLoaded", () => {
+            this.fetchSPFolders();
+        });
+        //this.fetchSPFolders(); // Empezar a buscar las carpetas en SP nada más cargar
         this.update();
     }
 
@@ -1121,13 +1124,12 @@ API_FOLDERS_URL = "/api/GetFolders";
 API_EXCEL_URL = "/api/GetExcel?year=";
 
 async fetchSPFolders() {
-const statusEl = document.getElementById('spStatusMsg');
-statusEl.textContent = "Consultando API…";
-statusEl.style.color = "#64748b";
-
-  const statusEl = document.getElementById('spStatusMsg');
-  const selectorEl = document.getElementById('spYearSelector');
-  const btnEl = document.getElementById('btnLoadFromSP');
+    
+    const statusEl = document.getElementById('spStatusMsg');
+    const selectorEl = document.getElementById('spYearSelector');
+    const btnEl = document.getElementById('btnLoadFromSP');
+    statusEl.textContent = "Consultando API…";
+    statusEl.style.color = "#64748b";
 
   try {
     const response = await fetch(this.API_FOLDERS_URL, {
