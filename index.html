@@ -301,12 +301,51 @@
                 </div>
             </section>
 
-            <!-- Top Movers Table -->
+            <!-- Top Movers Tables -->
             <section id="view-table-variaciones" class="details-section" style="margin-top: 2rem; display: none;">
+                <div style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem;">
+                    <label for="variacionesKpiFilter" style="color: var(--text); font-weight: 600; font-size: 0.95rem;">Filtrar por indicador:</label>
+                    <select id="variacionesKpiFilter" style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text); font-size: 0.9rem; min-width: 220px; cursor: pointer;">
+                        <option value="">Todos los indicadores</option>
+                        <option value="margen_antes_impuestos">Rtdo. Antes Impuestos</option>
+                        <option value="margen_bruto">Margen Bruto (€)</option>
+                        <option value="margen_bruto_pct">Margen Bruto (%)</option>
+                        <option value="ebitda_sin_gerenciamiento">EBITDA sin gerenc. (€)</option>
+                        <option value="ebitda_sin_gerenciamiento_pct">EBITDA sin gerenc. (%)</option>
+                        <option value="estructura">Costes de Estructura</option>
+                        <option value="estructura_pct">Peso de la Estructura (%)</option>
+                        <option value="ventas">Ventas Totales</option>
+                        <option value="variables">Variables</option>
+                        <option value="fidelizacion">Planes de Fidelización</option>
+                    </select>
+                </div>
+                <div class="card detal-card" style="margin-bottom: 2rem;">
+                    <div class="chart-header">
+                        <h3>Mayores Variaciones — Por Área</h3>
+                        <p>Cambios más significativos por área de negocio respecto a presupuesto y mes anterior</p>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="topMoversAreaTable">
+                            <thead>
+                                <tr>
+                                    <th>Área</th>
+                                    <th>Indicador</th>
+                                    <th>Desv. Ppto (€)</th>
+                                    <th>Desv. Ppto (%)</th>
+                                    <th>Var. Mes Ant. (€)</th>
+                                    <th>Var. Mes Ant. (%)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Dynamic -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
                 <div class="card detal-card">
                     <div class="chart-header">
-                        <h3>Mayores Variaciones (Top Movers)</h3>
-                        <p>Cambios más significativos del último mes respecto a presupuesto y mes anterior</p>
+                        <h3>Mayores Variaciones — Por Sociedad</h3>
+                        <p>Cambios más significativos por sociedad respecto a presupuesto y mes anterior</p>
                     </div>
                     <div class="table-wrapper">
                         <table id="topMoversTable">
