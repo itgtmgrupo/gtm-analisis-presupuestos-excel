@@ -13,6 +13,7 @@ class Dashboard {
         this.activeKpiId = "ventas";
         this.activeView = "charts"; // 'charts', 'detalle', 'matriz', 'variaciones'
         this.comparisonMode = "budget"; // 'budget', 'prev_month'
+        this.variacionesKpi = "";
 
         this.charts = {
             evolucionArea: null,
@@ -183,6 +184,15 @@ class Dashboard {
                 btnCompPpto.classList.remove('active');
                 btnCompPpto.style.background = 'transparent';
                 btnCompPpto.style.color = 'var(--text)';
+                this.update();
+            });
+        }
+
+        // Variaciones KPI Filter
+        const varKpiFilter = document.getElementById('variacionesKpiFilter');
+        if (varKpiFilter) {
+            varKpiFilter.addEventListener('change', (e) => {
+                this.variacionesKpi = e.target.value;
                 this.update();
             });
         }
@@ -1009,25 +1019,39 @@ class Dashboard {
     }
 
     renderTopMoversTable(companies) {
-        const table = document.querySelector('#topMoversTable');
+        // Render Area table
+        this._renderMoversTable('topMoversAreaTable', companies, true);
+        // Render Society table
+        this._renderMoversTable('topMoversTable', companies, false);
+    }
+
+    _renderMoversTable(tableId, companies, isByArea) {
+        const table = document.querySelector(`#${tableId}`);
+        if (!table) return;
         const tbody = table.querySelector('tbody');
         const theadTr = table.querySelector('thead tr');
         if (!tbody || !theadTr) return;
 
-        // Dynamically adjust headers based on mode
+        const entityLabel = isByArea ? 'Área' : 'Sociedad';
+
+        // Reorder headers based on comparison mode
         if (this.comparisonMode === 'budget') {
             theadTr.innerHTML = `
-                <th>Sociedad</th>
+                <th>${entityLabel}</th>
                 <th>Indicador</th>
-                <th>Desv. Ppto (€)</th>
+                <th>Desv. Ppto (€/%)</th>
                 <th>Desv. Ppto (%)</th>
+                <th>Var. Mes Ant. (€/%)</th>
+                <th>Var. Mes Ant. (%)</th>
             `;
         } else {
             theadTr.innerHTML = `
-                <th>Sociedad</th>
+                <th>${entityLabel}</th>
                 <th>Indicador</th>
-                <th>Var. Mes Ant. (€)</th>
+                <th>Var. Mes Ant. (€/%)</th>
                 <th>Var. Mes Ant. (%)</th>
+                <th>Desv. Ppto (€/%)</th>
+                <th>Desv. Ppto (%)</th>
             `;
         }
 
@@ -1035,86 +1059,136 @@ class Dashboard {
         const currMIdx = dataMonths.indexOf(this.selectedMonth);
         const prevMonth = currMIdx > 0 ? dataMonths[currMIdx - 1] : null;
 
-        let movers = [];
-        const targetedKPIs = ['margen_bruto', 'ebitda_sin_gerenciamiento', 'estructura', 'margen_antes_impuestos'];
+        // Build entities list
+        let entitiesList = [];
+        if (isByArea) {
+            this.MOCK_DATA.areas.forEach(area => {
+                const areaComps = area.companies.filter(c => companies.includes(c));
+                if (areaComps.length > 0) entitiesList.push({ name: area.name, comps: areaComps });
+            });
+        } else {
+            companies.forEach(comp => {
+                entitiesList.push({ name: comp, comps: [comp] });
+            });
+        }
 
-        companies.forEach(comp => {
-            this.MOCK_DATA.indicators.filter(i => targetedKPIs.includes(i.id)).forEach(ind => {
-                let bVal = 0;
-                if (this.comparisonMode === 'budget') {
-                    bVal = (this.DATA.budget[comp] && this.DATA.budget[comp][ind.id]) || 0;
+        // Define which indicators to analyze
+        const allMainKpis = [
+            'margen_antes_impuestos', 'margen_bruto', 'margen_bruto_pct', 
+            'ebitda_sin_gerenciamiento', 'ebitda_sin_gerenciamiento_pct',
+            'estructura', 'estructura_pct', 'ventas', 'variables', 'fidelizacion'
+        ];
+
+        const targetedKpiIds = this.variacionesKpi ? [this.variacionesKpi] : allMainKpis;
+
+        let moversSorted = [];
+
+        entitiesList.forEach(ent => {
+            targetedKpiIds.forEach(kpiId => {
+                let currentVal = 0, budgetVal = 0, prevVal = 0;
+                let kpiName = "";
+                let kpiType = "profit"; // Default
+
+                // Helper to sum base values across companies in the entity
+                const getSum = (indicatorId, version, month) => {
+                    let total = 0;
+                    ent.comps.forEach(c => {
+                        if (version === 'budget') {
+                            total += (this.DATA.budget[c] && this.DATA.budget[c][indicatorId]) || 0;
+                        } else if (version === 'actual' && month && this.DATA.actuals[c] && this.DATA.actuals[c][month]) {
+                            total += this.DATA.actuals[c][month][indicatorId] || 0;
+                        }
+                    });
+                    // Special case for aggregated sales
+                    if (indicatorId === 'ventas') {
+                        ent.comps.forEach(c => {
+                            if (version === 'budget') total += (this.DATA.budget[c] && this.DATA.budget[c]['ventas_intragrupo']) || 0;
+                            else if (version === 'actual' && month && this.DATA.actuals[c] && this.DATA.actuals[c][month]) {
+                                total += this.DATA.actuals[c][month]['ventas_intragrupo'] || 0;
+                            }
+                        });
+                    }
+                    return total;
+                };
+
+                // Logic to handle base vs derived KPIs
+                if (kpiId.endsWith('_pct')) {
+                    const baseId = kpiId.replace('_pct', '');
+                    const cSales = getSum('ventas', 'actual', this.selectedMonth);
+                    const bSales = getSum('ventas', 'budget', null);
+                    const pSales = prevMonth ? getSum('ventas', 'actual', prevMonth) : 0;
+
+                    const cBase = getSum(baseId, 'actual', this.selectedMonth);
+                    const bBase = getSum(baseId, 'budget', null);
+                    const pBase = prevMonth ? getSum(baseId, 'actual', prevMonth) : 0;
+
+                    currentVal = cSales !== 0 ? (cBase / Math.abs(cSales)) * 100 : 0;
+                    budgetVal = bSales !== 0 ? (bBase / Math.abs(bSales)) * 100 : 0;
+                    prevVal = pSales !== 0 ? (pBase / Math.abs(pSales)) * 100 : 0;
+
+                    const baseInd = this.MOCK_DATA.indicators.find(i => i.id === baseId);
+                    kpiName = baseId === 'estructura' ? 'Peso Estructura (%)' : (baseInd ? baseInd.name + ' (%)' : kpiId);
+                    kpiType = 'ratio';
+                    if (baseId === 'estructura') kpiType = 'expense_ratio';
                 } else {
-                    bVal = prevMonth && this.DATA.actuals[comp] && this.DATA.actuals[comp][prevMonth] ? this.DATA.actuals[comp][prevMonth][ind.id] || 0 : 0;
-                }
-                
-                let cVal = 0, pVal = 0;
-                
-                if (this.DATA.actuals[comp]) {
-                    if (this.DATA.actuals[comp][this.selectedMonth]) cVal = this.DATA.actuals[comp][this.selectedMonth][ind.id] || 0;
-                    if (prevMonth && this.DATA.actuals[comp][prevMonth]) pVal = this.DATA.actuals[comp][prevMonth][ind.id] || 0;
-                }
+                    currentVal = getSum(kpiId, 'actual', this.selectedMonth);
+                    budgetVal = getSum(kpiId, 'budget', null);
+                    prevVal = prevMonth ? getSum(kpiId, 'actual', prevMonth) : 0;
 
-                // Transform Margen Bruto from Absolute Euro into Percentage (%)
-                let typeOverride = ind.type;
-                if (ind.id === 'margen_bruto') {
-                    typeOverride = 'ratio'; 
-                    // Ventas Totales
-                    const getVentas = (dataset, month) => {
-                        if (!dataset[comp]) return 0;
-                        const dataObj = month ? dataset[comp][month] : dataset[comp];
-                        if (!dataObj) return 0;
-                        return (dataObj['ventas'] || 0) + (dataObj['ventas_intragrupo'] || 0);
-                    };
-                    const bVentas = this.comparisonMode === 'budget' ? getVentas(this.DATA.budget, null) : getVentas(this.DATA.actuals, prevMonth);
-                    const cVentas = getVentas(this.DATA.actuals, this.selectedMonth);
-                    const pVentas = getVentas(this.DATA.actuals, prevMonth);
-                    
-                    bVal = bVentas !== 0 ? (bVal / Math.abs(bVentas)) * 100 : 0;
-                    cVal = cVentas !== 0 ? (cVal / Math.abs(cVentas)) * 100 : 0;
-                    pVal = pVentas !== 0 ? (pVal / Math.abs(pVentas)) * 100 : 0;
+                    const baseInd = this.MOCK_DATA.indicators.find(i => i.id === kpiId);
+                    kpiName = kpiId === 'ventas' ? 'Ventas Totales' : (baseInd ? baseInd.name : kpiId);
+                    kpiType = (baseInd ? baseInd.type : 'profit');
                 }
 
-                if (bVal === 0 && cVal === 0 && pVal === 0) return;
+                if (currentVal === 0 && budgetVal === 0 && prevVal === 0) return;
 
-                const diffPpto = cVal - bVal;
-                // For ratios, % deviation doesn't linearly make sense relative to small decimal changes, but we leave it.
-                const pctPpto = bVal !== 0 ? (diffPpto / Math.abs(bVal)) * 100 : 0;
-                const diffPrev = cVal - pVal;
-                const pctPrev = pVal !== 0 ? (diffPrev / Math.abs(pVal)) * 100 : 0;
+                const diffPpto = currentVal - budgetVal;
+                const pctPpto = budgetVal !== 0 ? (diffPpto / Math.abs(budgetVal)) * 100 : 0;
+                const diffPrev = currentVal - prevVal;
+                const pctPrev = prevVal !== 0 ? (diffPrev / Math.abs(prevVal)) * 100 : 0;
 
-                const score = Math.abs(diffPrev) + Math.abs(diffPpto) * 0.5;
+                const score = this.comparisonMode === 'budget' ? Math.abs(diffPpto) : Math.abs(diffPrev);
 
-                const displayName = ind.id === 'margen_bruto' ? 'Margen Bruto (%)' : ind.name;
-
-                movers.push({ comp, ind: {name: displayName}, bVal, cVal, pVal, diffPpto, pctPpto, diffPrev, pctPrev, score, type: typeOverride });
+                moversSorted.push({
+                    entityName: ent.name,
+                    kpiName,
+                    diffPpto, pctPpto,
+                    diffPrev, pctPrev,
+                    score,
+                    type: kpiType,
+                    isRatio: kpiType.includes('ratio')
+                });
             });
         });
 
-        movers.sort((a, b) => b.score - a.score);
-        const topMovers = movers.slice(0, 10);
+        moversSorted.sort((a, b) => b.score - a.score);
+        const topMovers = moversSorted.slice(0, 10);
 
         let bodyHTML = '';
         topMovers.forEach(m => {
-            const isFavPpto = m.type === 'expense' ? m.diffPpto <= 0 : m.diffPpto >= 0;
-            const isFavPrev = m.type === 'expense' ? m.diffPrev <= 0 : m.diffPrev >= 0;
+            // Improvement Logic
+            // For RAI, Margen, Ebitda, Ventas -> Improvement if diff > 0
+            // For Costes, Estructura, Variables, Fidelizacion -> Improvement if diff < 0
+            let isFavPpto = m.diffPpto >= 0;
+            let isFavPrev = m.diffPrev >= 0;
+            
+            if (m.type === 'expense' || m.type === 'expense_ratio') {
+                isFavPpto = m.diffPpto <= 0;
+                isFavPrev = m.diffPrev <= 0;
+            }
 
-            const suffix = m.type === 'ratio' ? '%' : 'k€';
-            const formatVal = (val, t) => t === 'ratio' ? this.formatPercent(val) : this.formatEuro(val);
+            const suffix = m.isRatio ? '%' : 'k€';
+            const fv = (v) => m.isRatio ? this.formatPercent(v) : this.formatEuro(v);
+
+            const pptoCell = `<td class="${isFavPpto ? 'text-success' : 'text-danger'}">${m.diffPpto > 0 ? '+' : ''}${fv(m.diffPpto)}${suffix}</td>`;
+            const pptoPctCell = `<td class="${isFavPpto ? 'text-success' : 'text-danger'}">${m.pctPpto > 0 ? '+' : ''}${this.formatPercent(m.pctPpto)}%</td>`;
+            const prevCell = `<td class="${isFavPrev ? 'text-success' : 'text-danger'}">${m.diffPrev > 0 ? '+' : ''}${fv(m.diffPrev)}${suffix}</td>`;
+            const prevPctCell = `<td class="${isFavPrev ? 'text-success' : 'text-danger'}">${prevMonth ? (m.pctPrev > 0 ? '+' : '') + this.formatPercent(m.pctPrev) + '%' : '-'}</td>`;
 
             if (this.comparisonMode === 'budget') {
-                bodyHTML += `<tr>
-                    <td>${m.comp}</td>
-                    <td>${m.ind.name}</td>
-                    <td class="${isFavPpto ? 'text-success' : 'text-danger'}">${m.diffPpto > 0 ? '+' : ''}${formatVal(m.diffPpto, m.type)}${suffix}</td>
-                    <td class="${isFavPpto ? 'text-success' : 'text-danger'}">${this.formatPercent(m.pctPpto)}%</td>
-                </tr>`;
+                bodyHTML += `<tr><td>${m.entityName}</td><td>${m.kpiName}</td>${pptoCell}${pptoPctCell}${prevCell}${prevPctCell}</tr>`;
             } else {
-                bodyHTML += `<tr>
-                    <td>${m.comp}</td>
-                    <td>${m.ind.name}</td>
-                    <td class="${isFavPrev ? 'text-success' : 'text-danger'}">${m.diffPrev > 0 ? '+' : ''}${formatVal(m.diffPrev, m.type)}${suffix}</td>
-                    <td class="${isFavPrev ? 'text-success' : 'text-danger'}">${prevMonth ? (m.pctPrev > 0 ? '+' : '') + this.formatPercent(m.pctPrev) + '%' : '-'}</td>
-                </tr>`;
+                bodyHTML += `<tr><td>${m.entityName}</td><td>${m.kpiName}</td>${prevCell}${prevPctCell}${pptoCell}${pptoPctCell}</tr>`;
             }
         });
         tbody.innerHTML = bodyHTML;
