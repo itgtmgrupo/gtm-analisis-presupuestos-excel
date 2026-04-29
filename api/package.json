@@ -1,0 +1,9 @@
+{
+  "name": "dashboard-presupuesto-api",
+  "version": "1.0.0",
+  "description": "Azure Functions API for Dashboard Presupuesto — Graph API proxy to SharePoint",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {}
+}

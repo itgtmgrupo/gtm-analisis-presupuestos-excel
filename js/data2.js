@@ -59,6 +59,7 @@ function generateData() {
             // Budget (Fixed for the year)
             budget[company] = {
                 ventas: Math.random() * 1000000 + 500000,
+                ventas_intragrupo: 0,
                 costes: 0,
                 variables: 0,
                 fidelizacion: 0,
@@ -68,6 +69,9 @@ function generateData() {
                 amortizacion: 0,
                 financieros: 0,
                 financieros_intragrupo: 0,
+                margen_bruto: 0,
+                ebitda: 0,
+                ebitda_sin_gerenciamiento: 0,
                 margen_antes_impuestos: 0,
                 margen_neto: 0
             };

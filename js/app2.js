@@ -13,6 +13,7 @@ class Dashboard {
         this.activeKpiId = "ventas";
         this.activeView = "charts"; // 'charts', 'detalle', 'matriz', 'variaciones'
         this.comparisonMode = "budget"; // 'budget', 'prev_month'
+        this.variacionesKpi = ""; // Selected KPI for Mayores Variaciones
 
         this.charts = {
             evolucionArea: null,
@@ -110,9 +111,30 @@ class Dashboard {
             this.update();
         });
 
-        document.getElementById('companySearch').addEventListener('input', (e) => {
-            this.searchQuery = e.target.value;
-            this.renderCompanyFilter();
+        // Local Upload handler (Temporal bypass while SP is fixed)
+        document.getElementById('localExcelUpload').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try {
+                    const arrayBuffer = evt.target.result;
+                    const dataUI8 = new Uint8Array(arrayBuffer);
+                    const workbook = XLSX.read(dataUI8, { type: 'array' });
+                    
+                    const success = this.processWorkbook(workbook);
+                    if (!success) {
+                        alert("❌ Estructura de Excel no válida. Verifica que exista la pestaña 'Presupuesto' o 'Ppto'.");
+                    } else {
+                        this.update();
+                        alert(`✅ ¡Carga local exitosa!\nMeses detectados: ${this.MOCK_DATA.months.join(', ')}`);
+                    }
+                } catch (error) {
+                    alert("❌ Error al leer el archivo Excel: " + error.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
         });
 
         const toggleBtn = document.getElementById('matrixToggleBtn');
@@ -157,6 +179,14 @@ class Dashboard {
             this.activeView = 'variaciones';
             this.updateViewVisibility();
         });
+
+        const variFilter = document.getElementById('variacionesKpiFilter');
+        if (variFilter) {
+            variFilter.addEventListener('change', (e) => {
+                this.variacionesKpi = e.target.value;
+                this.renderTopMoversTable(this.getFilteredData().companies);
+            });
+        }
 
         // Comparison Toggles
         const btnCompPpto = document.getElementById('btn-comp-ppto');
@@ -214,11 +244,19 @@ class Dashboard {
         document.getElementById('btn-show-variaciones').classList.toggle('active', this.activeView === 'variaciones');
     }
 
+    // Centralized helper: determines if a deviation is "favorable" given the KPI type
+    isFavorableDeviation(kpiType, deviation) {
+        if (kpiType === 'expense' || kpiType === 'expense_ratio') return deviation <= 0;
+        if (kpiType === 'both') return true;
+        return deviation >= 0; // profit, income, ratio
+    }
+
     getMetricValue(comps, datasetStr, monthOrBudget) {
         let sumNominal = 0;
         let sumVentas = 0;
         let sumMargen = 0;
         let sumEstructura = 0;
+        let sumEbitda = 0;
 
         comps.forEach(comp => {
             let dataObj = datasetStr === 'budget'
@@ -230,15 +268,19 @@ class Dashboard {
             if (this.activeKpiId === 'ventas') { sumNominal += v; }
             else if (this.activeKpiId === 'rai') { sumNominal += (dataObj.margen_antes_impuestos || 0); }
             else if (this.activeKpiId === 'ebitda') { sumNominal += (dataObj.ebitda_sin_gerenciamiento || 0); }
+            else if (this.activeKpiId === 'margen-eur') { sumNominal += (dataObj.margen_bruto || 0); }
             else if (this.activeKpiId === 'costes-estructura') { sumNominal += (dataObj.estructura || 0); }
             else if (this.activeKpiId === 'variables') { sumNominal += (dataObj.variables || 0); }
             else if (this.activeKpiId === 'fidelizacion') { sumNominal += (dataObj.fidelizacion || 0); }
             else if (this.activeKpiId === 'margen') { sumMargen += (dataObj.margen_bruto || 0); sumVentas += v; }
+            else if (this.activeKpiId === 'ebitda-pct') { sumEbitda += (dataObj.ebitda_sin_gerenciamiento || 0); sumVentas += v; }
             else if (this.activeKpiId === 'peso-estructura') { sumEstructura += (dataObj.estructura || 0); sumVentas += v; }
         });
 
         if (this.activeKpiId === 'margen') {
             return sumVentas !== 0 ? (sumMargen / Math.abs(sumVentas)) * 100 : 0;
+        } else if (this.activeKpiId === 'ebitda-pct') {
+            return sumVentas !== 0 ? (sumEbitda / Math.abs(sumVentas)) * 100 : 0;
         } else if (this.activeKpiId === 'peso-estructura') {
             return sumVentas !== 0 ? (sumEstructura / Math.abs(sumVentas)) * 100 : 0;
         } else {
@@ -265,10 +307,11 @@ class Dashboard {
             companiesToSum = [...new Set([...allActuals, ...allBudgets])].filter(c => !excludedNodes.includes(c));
         }
 
-        const totals = { budget: {}, actual: {} };
+        const totals = { budget: {}, actual: {}, prev_actual: {} };
         this.MOCK_DATA.indicators.forEach(ind => {
             totals.budget[ind.id] = 0;
             totals.actual[ind.id] = 0;
+            totals.prev_actual[ind.id] = 0;
         });
 
         const dataMonths = this.MOCK_DATA.months;
@@ -277,19 +320,20 @@ class Dashboard {
 
         companiesToSum.forEach(comp => {
             this.MOCK_DATA.indicators.forEach(ind => {
-                let bVal = 0;
-                if (this.comparisonMode === 'budget') {
-                    bVal = this.DATA.budget[comp] ? this.DATA.budget[comp][ind.id] : 0;
-                } else {
-                    if (prevMonth && this.DATA.actuals[comp] && this.DATA.actuals[comp][prevMonth]) {
-                        bVal = this.DATA.actuals[comp][prevMonth][ind.id] || 0;
-                    }
-                }
-                totals.budget[ind.id] += (bVal || 0); // "budget" key here acts as the dynamic baseline
+                // Pure Budget baseline
+                const bVal = this.DATA.budget[comp] ? this.DATA.budget[comp][ind.id] : 0;
+                totals.budget[ind.id] += (bVal || 0);
 
+                // Pure Actual current month
                 if (this.DATA.actuals[comp] && this.DATA.actuals[comp][this.selectedMonth]) {
                     const aVal = this.DATA.actuals[comp][this.selectedMonth][ind.id];
                     totals.actual[ind.id] += (aVal || 0);
+                }
+
+                // Pure Actual previous month
+                if (prevMonth && this.DATA.actuals[comp] && this.DATA.actuals[comp][prevMonth]) {
+                    const pVal = this.DATA.actuals[comp][prevMonth][ind.id];
+                    totals.prev_actual[ind.id] += (pVal || 0);
                 }
             });
         });
@@ -331,27 +375,12 @@ class Dashboard {
     }
 
     updateKPIs(totals) {
-        const updateKPI = (id, actual, budget, type) => {
+        const updateKPI = (id, actual, budget, prev_actual, type) => {
             const card = document.getElementById(`kpi-${id}`);
             if (!card) return;
             const valEl = card.querySelector('.kpi-value');
-            const trendEl = card.querySelector('.kpi-trend');
-            const trendIcon = card.querySelector('.trend-icon');
-            const trendVal = card.querySelector('.trend-value');
-            const subAbsEl = card.querySelector('.kpi-sub-abs');
-            const subLabelEl = card.querySelector('.kpi-sub');
 
-            const baselineLabel = this.comparisonMode === 'budget' ? 'vs Presupuesto' : 'vs Mes anterior';
-
-            if (subLabelEl && subLabelEl.textContent.startsWith('vs ')) {
-                subLabelEl.textContent = baselineLabel;
-            }
-
-            let deviationPct = 0;
-            if (budget !== 0) deviationPct = ((actual - budget) / Math.abs(budget)) * 100;
-
-            let deviationAbs = actual - budget;
-
+            // Format main value
             if (type === 'ratio') {
                 valEl.textContent = `${this.formatPercent(actual)}%`;
             } else if (id === 'peso-estructura') {
@@ -360,76 +389,127 @@ class Dashboard {
                 valEl.textContent = `${this.formatEuro(actual, 0)}k€`;
             }
 
-            const isPositive = deviationAbs > 0;
-            let favorable = isPositive;
-            if (type === 'expense') favorable = !isPositive;
+            // Calculation helper
+            const applyComparison = (prefix, baseline) => {
+                const col = card.querySelector(`.comp-${prefix}`);
+                if (!col) return;
+                
+                const absEl = col.querySelector('.comp-val');
+                const trendEl = col.querySelector(`.trend-${prefix}`);
+                const iconEl = trendEl ? trendEl.querySelector('.trend-icon') : null;
+                const pctEl = trendEl ? trendEl.querySelector('.trend-value') : null;
 
-            if (trendEl) {
-                trendEl.className = `kpi-trend ${favorable ? 'positive' : 'negative'}`;
-            }
-            if (trendIcon) {
-                trendIcon.textContent = isPositive ? '↑' : '↓';
-            }
-            if (trendVal) {
-                trendVal.textContent = `${Math.abs(deviationPct).toFixed(2).replace('.', ',')}%`;
-            }
+                let act = actual;
+                let bsl = baseline;
 
-            if (subAbsEl) {
-                if (id === 'peso-estructura' || id === 'margen') {
-                    if (subLabelEl) {
-                        subLabelEl.style.display = 'inline';
-                        subLabelEl.textContent = baselineLabel;
+                // Peso Estructura works entirely on absolutes because the user reads it as a positive weight
+                if (id === 'peso-estructura') {
+                    act = Math.abs(actual);
+                    bsl = Math.abs(baseline);
+                }
+
+                let deviationAbs = act - bsl;
+                let deviationPct = bsl !== 0 ? ((act - bsl) / Math.abs(bsl)) * 100 : 0;
+
+                const isRatio = ['peso-estructura', 'margen', 'ebitda-pct'].includes(id);
+
+                // For ratio KPIs, the variation is measured directly in percentage points
+                if (isRatio) {
+                    deviationPct = deviationAbs;
+                }
+
+                const isPositive = deviationAbs > 0;
+                let favorable = isPositive;
+
+                // For peso-estructura, since we forced absolute values, an increase (positive deviation) means we weigh MORE, which is WORSE.
+                if (id === 'peso-estructura') {
+                    favorable = !isPositive;
+                }
+
+                const displayPct = `${deviationPct > 0 ? '+' : ''}${deviationPct.toFixed(2).replace('.', ',')}%`;
+
+                // Margins & Ratios have custom text (Ref: x%)
+                if (isRatio) {
+                    if (absEl) absEl.textContent = `Ref: ${this.formatPercent(bsl)}%`;
+                    if (trendEl) {
+                        trendEl.className = `kpi-trend trend-${prefix} ${favorable ? 'positive' : 'negative'}`;
+                        if (iconEl) iconEl.textContent = isPositive ? '↑' : '↓';
+                        if (pctEl) pctEl.textContent = displayPct;
                     }
-                    const refTxt = this.comparisonMode === 'budget' ? 'Ppto' : 'Mes ant.';
-                    subAbsEl.textContent = `Ref: ${this.formatPercent(budget)}% (${refTxt})`;
-                    subAbsEl.className = `kpi-sub-abs`;
-                    subAbsEl.style.color = '#1e293b';
-                    subAbsEl.style.display = 'block';
-                    subAbsEl.style.marginTop = '4px';
                 } else {
-                    if (subLabelEl) {
-                        subLabelEl.style.display = 'inline';
-                        subLabelEl.textContent = baselineLabel;
+                    if (absEl) absEl.textContent = `${deviationAbs > 0 ? '+' : ''}${this.formatEuro(deviationAbs, 0)}k€`;
+                    if (absEl) absEl.className = `kpi-sub-abs comp-val ${favorable ? 'text-success' : 'text-danger'}`;
+                    if (trendEl) {
+                        trendEl.className = `kpi-trend trend-${prefix} ${favorable ? 'positive' : 'negative'}`;
+                        if (iconEl) iconEl.textContent = isPositive ? '↑' : '↓';
+                        if (pctEl) pctEl.textContent = displayPct;
                     }
-                    subAbsEl.textContent = `${deviationAbs > 0 ? '+' : ''}${this.formatEuro(deviationAbs, 0)}k€`;
-                    subAbsEl.className = `kpi-sub-abs ${favorable ? 'text-success' : 'text-danger'}`;
-                    subAbsEl.style.color = '';
-                    subAbsEl.style.display = 'inline';
-                    subAbsEl.style.marginTop = '0';
+                }
+            };
+
+            applyComparison('budget', budget);
+            applyComparison('prev', prev_actual);
+
+            // Re-order and style based on comparisonMode
+            const colBud = card.querySelector('.comp-budget');
+            const colPrev = card.querySelector('.comp-prev');
+            
+            if (colBud && colPrev) {
+                if (this.comparisonMode === 'budget') {
+                    colBud.style.order = "1";
+                    colBud.style.transform = "scale(1)";
+                    colBud.style.opacity = "1";
+                    
+                    colPrev.style.order = "2";
+                    colPrev.style.transform = "scale(0.85)";
+                    colPrev.style.opacity = "0.7";
+                    colPrev.style.transformOrigin = "left center";
+                } else {
+                    colPrev.style.order = "1";
+                    colPrev.style.transform = "scale(1)";
+                    colPrev.style.opacity = "1";
+                    
+                    colBud.style.order = "2";
+                    colBud.style.transform = "scale(0.85)";
+                    colBud.style.opacity = "0.7";
+                    colBud.style.transformOrigin = "left center";
                 }
             }
         };
 
         const ventasActual = (totals.actual.ventas || 0) + (totals.actual.ventas_intragrupo || 0);
         const ventasBudget = (totals.budget.ventas || 0) + (totals.budget.ventas_intragrupo || 0);
+        const ventasPrev = (totals.prev_actual.ventas || 0) + (totals.prev_actual.ventas_intragrupo || 0);
 
-        const margenReal = ventasActual !== 0 ? (totals.actual.margen_bruto / ventasActual) * 100 : 0;
-        const margenBud = ventasBudget !== 0 ? (totals.budget.margen_bruto / ventasBudget) * 100 : 0;
+        const margenReal = ventasActual !== 0 ? (totals.actual.margen_bruto / Math.abs(ventasActual)) * 100 : 0;
+        const margenBud = ventasBudget !== 0 ? (totals.budget.margen_bruto / Math.abs(ventasBudget)) * 100 : 0;
+        const margenPrev = ventasPrev !== 0 ? (totals.prev_actual.margen_bruto / Math.abs(ventasPrev)) * 100 : 0;
 
-        const estReal = ventasActual !== 0 ? (totals.actual.estructura / ventasActual) * 100 : 0;
-        const estBud = ventasBudget !== 0 ? (totals.budget.estructura / ventasBudget) * 100 : 0;
+        const estReal = ventasActual !== 0 ? (totals.actual.estructura / Math.abs(ventasActual)) * 100 : 0;
+        const estBud = ventasBudget !== 0 ? (totals.budget.estructura / Math.abs(ventasBudget)) * 100 : 0;
+        const estPrev = ventasPrev !== 0 ? (totals.prev_actual.estructura / Math.abs(ventasPrev)) * 100 : 0;
+
+        const ebitdaPctReal = ventasActual !== 0 ? (totals.actual.ebitda_sin_gerenciamiento / Math.abs(ventasActual)) * 100 : 0;
+        const ebitdaPctBud = ventasBudget !== 0 ? (totals.budget.ebitda_sin_gerenciamiento / Math.abs(ventasBudget)) * 100 : 0;
+        const ebitdaPctPrev = ventasPrev !== 0 ? (totals.prev_actual.ebitda_sin_gerenciamiento / Math.abs(ventasPrev)) * 100 : 0;
 
         // Fila 1
-        updateKPI('rai', totals.actual.margen_antes_impuestos || 0, totals.budget.margen_antes_impuestos || 0, 'profit');
-        updateKPI('ebitda', totals.actual.ebitda_sin_gerenciamiento || 0, totals.budget.ebitda_sin_gerenciamiento || 0, 'profit');
-        updateKPI('margen', margenReal, margenBud, 'ratio');
-        updateKPI('ventas', ventasActual, ventasBudget, 'income');
+        updateKPI('rai', totals.actual.margen_antes_impuestos || 0, totals.budget.margen_antes_impuestos || 0, totals.prev_actual.margen_antes_impuestos || 0, 'profit');
+        updateKPI('margen-eur', totals.actual.margen_bruto || 0, totals.budget.margen_bruto || 0, totals.prev_actual.margen_bruto || 0, 'profit');
+        updateKPI('margen', margenReal, margenBud, margenPrev, 'ratio');
+        updateKPI('ebitda', totals.actual.ebitda_sin_gerenciamiento || 0, totals.budget.ebitda_sin_gerenciamiento || 0, totals.prev_actual.ebitda_sin_gerenciamiento || 0, 'profit');
+        updateKPI('ebitda-pct', ebitdaPctReal, ebitdaPctBud, ebitdaPctPrev, 'ratio');
 
         // Fila 2
-        updateKPI('costes-estructura', totals.actual.estructura || 0, totals.budget.estructura || 0, 'expense');
-        updateKPI('peso-estructura', estReal, estBud, 'expense');
-        updateKPI('variables', totals.actual.variables || 0, totals.budget.variables || 0, 'expense');
-        updateKPI('fidelizacion', totals.actual.fidelizacion || 0, totals.budget.fidelizacion || 0, 'expense');
+        updateKPI('costes-estructura', totals.actual.estructura || 0, totals.budget.estructura || 0, totals.prev_actual.estructura || 0, 'expense');
+        updateKPI('peso-estructura', estReal, estBud, estPrev, 'expense');
+        updateKPI('ventas', ventasActual, ventasBudget, ventasPrev, 'income');
+        updateKPI('variables', totals.actual.variables || 0, totals.budget.variables || 0, totals.prev_actual.variables || 0, 'expense');
+        updateKPI('fidelizacion', totals.actual.fidelizacion || 0, totals.budget.fidelizacion || 0, totals.prev_actual.fidelizacion || 0, 'expense');
 
         document.querySelectorAll('.kpi-card').forEach(card => {
             card.classList.toggle('active', card.id === `kpi-${this.activeKpiId}`);
         });
-
-        const pesoEstSubEl = document.getElementById('peso-estructura-budget');
-        if (pesoEstSubEl) {
-            pesoEstSubEl.textContent = `Ppto ref: ${Math.abs(estBud).toFixed(2)}%`;
-            pesoEstSubEl.className = "kpi-sub-abs";
-        }
     }
 
     updateCharts(totals, companies) {
@@ -481,23 +561,31 @@ class Dashboard {
         const baselineLabel = 'Presupuesto';
         const budgetTotal = allComps.reduce((sum, c) => sum + this.getMetricValue([c], 'budget', null), 0);
 
-        const isPercent = this.activeKpiId === 'margen' || this.activeKpiId === 'peso-estructura';
+        const isPercent = this.activeKpiId === 'margen' || this.activeKpiId === 'peso-estructura' || this.activeKpiId === 'ebitda-pct';
         const groupLabel = isByArea ? 'Área' : 'Sociedad';
         const kpiTitles = {
             'ventas': 'Ventas Totales', 'rai': 'Rtdo. Antes Impuestos',
-            'ebitda': 'EBITDA (sin gerenc.)', 'margen': 'Margen Bruto (%)',
+            'ebitda': 'EBITDA (sin gerenc.)', 'ebitda-pct': 'EBITDA sin gerenc. (%)',
+            'margen': 'Margen Bruto (%)', 'margen-eur': 'Margen Bruto (€)',
             'costes-estructura': 'Costes de Estructura', 'peso-estructura': 'Peso Estructura (%)',
             'variables': 'Variables', 'fidelizacion': 'Planes de Fidelización'
         };
         const titleEl = document.getElementById(isByArea ? 'meses-area-title' : 'meses-sociedad-title');
         if (titleEl) titleEl.textContent = `Evolución por Meses — ${kpiTitles[this.activeKpiId] || 'KPI'} (Total por ${groupLabel})`;
 
+        // Palette of 12 elegant distinct colors, mapped per month
+        const elegantPalette = [
+            '#3b82f6', '#0ea5e9', '#06b6d4', '#14b8a6', 
+            '#8b5cf6', '#d946ef', '#f43f5e', '#f97316',
+            '#eab308', '#84cc16', '#6366f1', '#64748b'
+        ];
+
         // One bar dataset (total) + hidden baseline for plugin
         const datasets = [
             {
                 label: 'Real',
                 data: realData,
-                backgroundColor: '#22c55e',
+                backgroundColor: monthsToShow.map(m => elegantPalette[this.MOCK_DATA.months.indexOf(m)]),
                 borderRadius: 4,
                 barPercentage: 0.6,
                 categoryPercentage: 0.8,
@@ -528,7 +616,7 @@ class Dashboard {
                 const xScale = scales.x;
                 const yScale = scales.y;
                 ctx.save();
-                ctx.strokeStyle = '#ef4444';
+                ctx.strokeStyle = '#22c55e'; // Green Presupuesto
                 ctx.lineWidth = 3;
                 ctx.lineCap = 'round';
                 baselineDs.data.forEach((value, index) => {
@@ -559,8 +647,8 @@ class Dashboard {
                         labels: {
                             color: '#64748b',
                             generateLabels: () => [
-                                { text: 'Real', fillStyle: '#22c55e', strokeStyle: 'transparent', lineWidth: 0, hidden: false },
-                                { text: baselineLabel, fillStyle: 'transparent', strokeStyle: '#ef4444', lineWidth: 3, hidden: false }
+                                { text: 'Real', fillStyle: '#3b82f6', strokeStyle: 'transparent', lineWidth: 0, hidden: false },
+                                { text: baselineLabel, fillStyle: 'transparent', strokeStyle: '#22c55e', lineWidth: 3, hidden: false }
                             ]
                         }
                     },
@@ -593,6 +681,9 @@ class Dashboard {
                 }
             }
         });
+
+        let rowEntities = isByArea ? (this.selectedAreas.length > 0 ? this.selectedAreas : this.MOCK_DATA.areas.map(a => a.name)) : companies;
+        this.renderChartTable(`table-${chartKey}`, rowEntities, companies, monthsToShow, isByArea, isPercent);
     }
 
 
@@ -607,7 +698,9 @@ class Dashboard {
             'ventas': 'Ventas Totales',
             'rai': 'Resultado Antes de Impuestos',
             'ebitda': 'EBITDA (sin gerenc.)',
+            'ebitda-pct': 'EBITDA sin gerenc. (%)',
             'margen': 'Margen Bruto (%)',
+            'margen-eur': 'Margen Bruto (€)',
             'costes-estructura': 'Costes de Estructura',
             'peso-estructura': 'Peso de la Estructura (%)',
             'variables': 'Variables',
@@ -673,7 +766,11 @@ class Dashboard {
         });
 
         // Datasets: One for each Month
-        const realColors = ['#22c55e', '#16a34a', '#15803d', '#166534', '#14532d', '#052e16'];
+        const elegantPalette = [
+            '#3b82f6', '#0ea5e9', '#06b6d4', '#14b8a6', 
+            '#8b5cf6', '#d946ef', '#f43f5e', '#f97316',
+            '#eab308', '#84cc16', '#6366f1', '#64748b'
+        ];
 
         displayMonths.forEach((m, idx) => {
             const data = entities.map(entity => {
@@ -686,7 +783,7 @@ class Dashboard {
                 type: 'bar',
                 label: `Real (${m.split('-')[0]})`,
                 data: data,
-                backgroundColor: realColors[idx % realColors.length],
+                backgroundColor: elegantPalette[this.MOCK_DATA.months.indexOf(m)],
                 borderRadius: 4,
                 barPercentage: 0.8,
                 categoryPercentage: 0.8,
@@ -705,7 +802,7 @@ class Dashboard {
                 const yScale = scales.y;
 
                 ctx.save();
-                ctx.strokeStyle = '#ef4444';
+                ctx.strokeStyle = '#22c55e'; // Green presupuesto
                 ctx.lineWidth = 3;
                 ctx.lineCap = 'round';
 
@@ -753,7 +850,7 @@ class Dashboard {
                             .concat([{
                                 text: baselineLabel,
                                 fillStyle: 'transparent',
-                                strokeStyle: '#ef4444',
+                                strokeStyle: '#22c55e',
                                 lineWidth: 3,
                                 hidden: false,
                                 datasetIndex: -1
@@ -767,7 +864,7 @@ class Dashboard {
                         ticks: {
                             color: '#64748b',
                             callback: (v) => {
-                                if (this.activeKpiId === 'margen' || this.activeKpiId === 'peso-estructura') {
+                                if (this.activeKpiId === 'margen' || this.activeKpiId === 'peso-estructura' || this.activeKpiId === 'ebitda-pct') {
                                     return `${this.formatPercent(v)}%`;
                                 } else {
                                     return `${this.formatEuro(v, 0)}k€`;
@@ -782,7 +879,7 @@ class Dashboard {
                         callbacks: {
                             label: (ctx) => {
                                 let v = ctx.raw;
-                                if (this.activeKpiId === 'margen' || this.activeKpiId === 'peso-estructura') {
+                                if (this.activeKpiId === 'margen' || this.activeKpiId === 'peso-estructura' || this.activeKpiId === 'ebitda-pct') {
                                     return ` ${ctx.dataset.label}: ${this.formatPercent(v)}%`;
                                 } else {
                                     return ` ${ctx.dataset.label}: ${this.formatEuro(v, 0)}k€`;
@@ -794,54 +891,56 @@ class Dashboard {
             }
         });
 
-        const tableContainer = document.getElementById(`table-${chartKey}`);
-        if (tableContainer) {
+        const isPercent = this.activeKpiId === 'margen' || this.activeKpiId === 'peso-estructura' || this.activeKpiId === 'ebitda-pct';
+        this.renderChartTable(`table-${chartKey}`, entities, companies, displayMonths, isByArea, isPercent);
+    }
 
-            // The baseline is always Budget for this chart layout now
-            let headersText = `<th>Entidad</th><th>Ppto (€)</th>`;
-            displayMonths.forEach(m => headersText += `<th>Real ${m.split('-')[0].toUpperCase()} (€)</th>`);
+    renderChartTable(containerId, rowEntities, validCompaniesGlob, months, isByAreaGrouped, isPercent) {
+        const tableContainer = document.getElementById(containerId);
+        if (!tableContainer) return;
 
-            let tableHTML = `<table>
-                <thead>
-                    <tr>
-                        ${headersText}
-                    </tr>
-                </thead>
-                <tbody>`;
+        let headersText = `<th>Entidad</th><th>Ppto</th>`;
+        months.forEach(m => headersText += `<th>Real ${m.split('-')[0].toUpperCase()}</th>`);
 
-            const expenseKpis = ['costes-estructura', 'peso-estructura', 'variables', 'fidelizacion'];
-            const isExpense = expenseKpis.includes(this.activeKpiId);
+        let tableHTML = `<table><thead><tr>${headersText}</tr></thead><tbody>`;
 
-            entities.forEach((entity, eIdx) => {
-                const bVal = budgetData[eIdx];
-                let rowText = `<td>${entity}</td><td>${this.formatEuro(bVal, 0)}k€</td>`;
+        rowEntities.forEach(entity => {
+            const entityComps = isByAreaGrouped ? this.MOCK_DATA.areas.find(a => a.name === entity)?.companies || [] : [entity];
+            const validComps = entityComps.filter(c => validCompaniesGlob.includes(c));
+            
+            if (validComps.length === 0) return;
 
-                displayMonths.forEach((m, mIdx) => {
-                    // +1 because budget is dataset[0]
-                    const rVal = datasets[mIdx + 1].data[eIdx];
+            const bValRaw = this.getMetricValue(validComps, 'budget', null);
+            const bVal = this.activeKpiId === 'peso-estructura' ? Math.abs(bValRaw) : bValRaw;
+            
+            const formatVal = (val) => isPercent ? this.formatPercent(val) + '%' : this.formatEuro(val, 0) + 'k€';
+            
+            let rowText = `<td>${entity}</td><td>${formatVal(bVal)}</td>`;
 
-                    const diff = rVal - bVal;
-                    let colorClass = '';
-
-                    if (Math.abs(diff) > 0.001) {
-                        let isFavorable = diff > 0;
-                        if (isExpense) isFavorable = diff < 0;
-                        colorClass = isFavorable ? 'text-success' : 'text-danger';
-                    } else {
-                        colorClass = 'text-black'; // assuming you'll define this or just inline style
+            months.forEach(m => {
+                const rValRaw = this.getMetricValue(validComps, 'actual', m);
+                const rVal = this.activeKpiId === 'peso-estructura' ? Math.abs(rValRaw) : rValRaw;
+                
+                const diff = rVal - bVal;
+                let colorClass = 'text-black';
+                
+                if (Math.abs(diff) > 0.001) {
+                    let isFavorable = diff > 0;
+                    if (this.activeKpiId === 'peso-estructura') {
+                        isFavorable = !isFavorable; // Inverted for peso-estructura
                     }
+                    colorClass = isFavorable ? 'text-success' : 'text-danger';
+                }
 
-                    // For the 'text-black' to work or to just ensure it's black:
-                    const styleOverride = colorClass === 'text-black' ? 'style="color: black !important;"' : '';
-
-                    rowText += `<td class="${colorClass}" ${styleOverride}>${this.formatEuro(rVal, 0)}k€</td>`;
-                });
-
-                tableHTML += `<tr>${rowText}</tr>`;
+                const styleOverride = colorClass === 'text-black' ? 'style="color: black !important;"' : '';
+                rowText += `<td class="${colorClass}" ${styleOverride}>${formatVal(rVal)}</td>`;
             });
-            tableHTML += `</tbody></table>`;
-            tableContainer.innerHTML = tableHTML;
-        }
+
+            tableHTML += `<tr>${rowText}</tr>`;
+        });
+
+        tableHTML += `</tbody></table>`;
+        tableContainer.innerHTML = tableHTML;
     }
 
     getEntityColor(entityName, isByArea) {
@@ -870,30 +969,37 @@ class Dashboard {
 
 
     updateTables(totals, companies) {
-        // Details Table
+        // Details Table — use correct baseline depending on comparison mode
+        const isPrevMode = this.comparisonMode === 'prev_month';
         const detailsHead = document.querySelector('#detailsTable thead tr th:nth-child(2)');
         if (detailsHead) {
-            detailsHead.textContent = this.comparisonMode === 'budget' ? 'Presupuesto' : 'Mes Ant.';
+            detailsHead.textContent = isPrevMode ? 'Mes Ant.' : 'Presupuesto';
         }
 
         const detailsBody = document.querySelector('#detailsTable tbody');
         detailsBody.innerHTML = "";
 
         this.MOCK_DATA.indicators.forEach(ind => {
-            // Aggregate Ventas
+            // Current month actual
             let actual = totals.actual[ind.id] || 0;
-            let budget = totals.budget[ind.id] || 0;
+
+            // Baseline: budget or previous month depending on mode
+            let baseline = isPrevMode
+                ? (totals.prev_actual[ind.id] || 0)
+                : (totals.budget[ind.id] || 0);
 
             if (ind.id === 'ventas') {
                 actual += (totals.actual['ventas_intragrupo'] || 0);
-                budget += (totals.budget['ventas_intragrupo'] || 0);
+                baseline += isPrevMode
+                    ? (totals.prev_actual['ventas_intragrupo'] || 0)
+                    : (totals.budget['ventas_intragrupo'] || 0);
             }
 
             // Skip intra group if we aggregated it into Ventas
             if (ind.id === 'ventas_intragrupo') return;
 
-            const devAbs = actual - budget;
-            let devPct = budget !== 0 ? (devAbs / Math.abs(budget)) * 100 : 0;
+            const devAbs = actual - baseline;
+            let devPct = baseline !== 0 ? (devAbs / Math.abs(baseline)) * 100 : 0;
 
             let isFavorable = devAbs > 0;
             if (ind.type === 'expense') isFavorable = devAbs < 0;
@@ -902,7 +1008,7 @@ class Dashboard {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${ind.id === 'ventas' ? 'Ventas Totales' : ind.name}</td>
-                <td>${this.formatEuro(budget, 0)}k€</td>
+                <td>${this.formatEuro(baseline, 0)}k€</td>
                 <td>${this.formatEuro(actual, 0)}k€</td>
                 <td class="${devAbs >= 0 ? (ind.type === 'expense' ? 'text-danger' : 'text-success') : (ind.type === 'expense' ? 'text-success' : 'text-danger')}">
                     ${devAbs >= 0 ? '+' : ''}${this.formatEuro(devAbs)}k€
@@ -1006,25 +1112,39 @@ class Dashboard {
     }
 
     renderTopMoversTable(companies) {
-        const table = document.querySelector('#topMoversTable');
+        // Render Area table
+        this._renderMoversTable('topMoversAreaTable', companies, true);
+        // Render Society table
+        this._renderMoversTable('topMoversTable', companies, false);
+    }
+
+    _renderMoversTable(tableId, companies, isByArea) {
+        const table = document.querySelector(`#${tableId}`);
+        if (!table) return;
         const tbody = table.querySelector('tbody');
         const theadTr = table.querySelector('thead tr');
         if (!tbody || !theadTr) return;
 
-        // Dynamically adjust headers based on mode
+        const entityLabel = isByArea ? 'Área' : 'Sociedad';
+
+        // Reorder headers based on comparison mode
         if (this.comparisonMode === 'budget') {
             theadTr.innerHTML = `
-                <th>Sociedad</th>
+                <th>${entityLabel}</th>
                 <th>Indicador</th>
-                <th>Desv. Ppto (€)</th>
+                <th>Desv. Ppto (€/%)</th>
                 <th>Desv. Ppto (%)</th>
+                <th>Var. Mes Ant. (€/%)</th>
+                <th>Var. Mes Ant. (%)</th>
             `;
         } else {
             theadTr.innerHTML = `
-                <th>Sociedad</th>
+                <th>${entityLabel}</th>
                 <th>Indicador</th>
-                <th>Var. Mes Ant. (€)</th>
+                <th>Var. Mes Ant. (€/%)</th>
                 <th>Var. Mes Ant. (%)</th>
+                <th>Desv. Ppto (€/%)</th>
+                <th>Desv. Ppto (%)</th>
             `;
         }
 
@@ -1032,94 +1152,144 @@ class Dashboard {
         const currMIdx = dataMonths.indexOf(this.selectedMonth);
         const prevMonth = currMIdx > 0 ? dataMonths[currMIdx - 1] : null;
 
-        let movers = [];
-        const targetedKPIs = ['margen_bruto', 'ebitda_sin_gerenciamiento', 'estructura', 'margen_antes_impuestos'];
+        // Build entities list
+        let entitiesList = [];
+        if (isByArea) {
+            this.MOCK_DATA.areas.forEach(area => {
+                const areaComps = area.companies.filter(c => companies.includes(c));
+                if (areaComps.length > 0) entitiesList.push({ name: area.name, comps: areaComps });
+            });
+        } else {
+            companies.forEach(comp => {
+                entitiesList.push({ name: comp, comps: [comp] });
+            });
+        }
 
-        companies.forEach(comp => {
-            this.MOCK_DATA.indicators.filter(i => targetedKPIs.includes(i.id)).forEach(ind => {
-                let bVal = 0;
-                if (this.comparisonMode === 'budget') {
-                    bVal = (this.DATA.budget[comp] && this.DATA.budget[comp][ind.id]) || 0;
+        // Define which indicators to analyze
+        const allMainKpis = [
+            'margen_antes_impuestos', 'margen_bruto', 'margen_bruto_pct', 
+            'ebitda_sin_gerenciamiento', 'ebitda_sin_gerenciamiento_pct',
+            'estructura', 'estructura_pct', 'ventas', 'variables', 'fidelizacion'
+        ];
+
+        const targetedKpiIds = this.variacionesKpi ? [this.variacionesKpi] : allMainKpis;
+
+        let moversSorted = [];
+
+        entitiesList.forEach(ent => {
+            targetedKpiIds.forEach(kpiId => {
+                let currentVal = 0, budgetVal = 0, prevVal = 0;
+                let kpiName = "";
+                let kpiType = "profit"; // Default
+
+                // Helper to sum base values across companies in the entity
+                const getSum = (indicatorId, version, month) => {
+                    let total = 0;
+                    ent.comps.forEach(c => {
+                        if (version === 'budget') {
+                            total += (this.DATA.budget[c] && this.DATA.budget[c][indicatorId]) || 0;
+                        } else if (version === 'actual' && month && this.DATA.actuals[c] && this.DATA.actuals[c][month]) {
+                            total += this.DATA.actuals[c][month][indicatorId] || 0;
+                        }
+                    });
+                    // Special case for aggregated sales
+                    if (indicatorId === 'ventas') {
+                        ent.comps.forEach(c => {
+                            if (version === 'budget') total += (this.DATA.budget[c] && this.DATA.budget[c]['ventas_intragrupo']) || 0;
+                            else if (version === 'actual' && month && this.DATA.actuals[c] && this.DATA.actuals[c][month]) {
+                                total += this.DATA.actuals[c][month]['ventas_intragrupo'] || 0;
+                            }
+                        });
+                    }
+                    return total;
+                };
+
+                // Logic to handle base vs derived KPIs
+                if (kpiId.endsWith('_pct')) {
+                    const baseId = kpiId.replace('_pct', '');
+                    const cSales = getSum('ventas', 'actual', this.selectedMonth);
+                    const bSales = getSum('ventas', 'budget', null);
+                    const pSales = prevMonth ? getSum('ventas', 'actual', prevMonth) : 0;
+
+                    const cBase = getSum(baseId, 'actual', this.selectedMonth);
+                    const bBase = getSum(baseId, 'budget', null);
+                    const pBase = prevMonth ? getSum(baseId, 'actual', prevMonth) : 0;
+
+                    currentVal = cSales !== 0 ? (cBase / Math.abs(cSales)) * 100 : 0;
+                    budgetVal = bSales !== 0 ? (bBase / Math.abs(bSales)) * 100 : 0;
+                    prevVal = pSales !== 0 ? (pBase / Math.abs(pSales)) * 100 : 0;
+
+                    const baseInd = this.MOCK_DATA.indicators.find(i => i.id === baseId);
+                    kpiName = baseId === 'estructura' ? 'Peso Estructura (%)' : (baseInd ? baseInd.name + ' (%)' : kpiId);
+                    kpiType = 'ratio';
+                    if (baseId === 'estructura') kpiType = 'expense_ratio';
                 } else {
-                    bVal = prevMonth && this.DATA.actuals[comp] && this.DATA.actuals[comp][prevMonth] ? this.DATA.actuals[comp][prevMonth][ind.id] || 0 : 0;
-                }
-                
-                let cVal = 0, pVal = 0;
-                
-                if (this.DATA.actuals[comp]) {
-                    if (this.DATA.actuals[comp][this.selectedMonth]) cVal = this.DATA.actuals[comp][this.selectedMonth][ind.id] || 0;
-                    if (prevMonth && this.DATA.actuals[comp][prevMonth]) pVal = this.DATA.actuals[comp][prevMonth][ind.id] || 0;
-                }
+                    currentVal = getSum(kpiId, 'actual', this.selectedMonth);
+                    budgetVal = getSum(kpiId, 'budget', null);
+                    prevVal = prevMonth ? getSum(kpiId, 'actual', prevMonth) : 0;
 
-                // Transform Margen Bruto from Absolute Euro into Percentage (%)
-                let typeOverride = ind.type;
-                if (ind.id === 'margen_bruto') {
-                    typeOverride = 'ratio'; 
-                    // Ventas Totales
-                    const getVentas = (dataset, month) => {
-                        if (!dataset[comp]) return 0;
-                        const dataObj = month ? dataset[comp][month] : dataset[comp];
-                        if (!dataObj) return 0;
-                        return (dataObj['ventas'] || 0) + (dataObj['ventas_intragrupo'] || 0);
-                    };
-                    const bVentas = this.comparisonMode === 'budget' ? getVentas(this.DATA.budget, null) : getVentas(this.DATA.actuals, prevMonth);
-                    const cVentas = getVentas(this.DATA.actuals, this.selectedMonth);
-                    const pVentas = getVentas(this.DATA.actuals, prevMonth);
-                    
-                    bVal = bVentas !== 0 ? (bVal / Math.abs(bVentas)) * 100 : 0;
-                    cVal = cVentas !== 0 ? (cVal / Math.abs(cVentas)) * 100 : 0;
-                    pVal = pVentas !== 0 ? (pVal / Math.abs(pVentas)) * 100 : 0;
+                    const baseInd = this.MOCK_DATA.indicators.find(i => i.id === kpiId);
+                    kpiName = kpiId === 'ventas' ? 'Ventas Totales' : (baseInd ? baseInd.name : kpiId);
+                    kpiType = (baseInd ? baseInd.type : 'profit');
                 }
 
-                if (bVal === 0 && cVal === 0 && pVal === 0) return;
+                if (currentVal === 0 && budgetVal === 0 && prevVal === 0) return;
 
-                const diffPpto = cVal - bVal;
-                // For ratios, % deviation doesn't linearly make sense relative to small decimal changes, but we leave it.
-                const pctPpto = bVal !== 0 ? (diffPpto / Math.abs(bVal)) * 100 : 0;
-                const diffPrev = cVal - pVal;
-                const pctPrev = pVal !== 0 ? (diffPrev / Math.abs(pVal)) * 100 : 0;
+                const diffPpto = currentVal - budgetVal;
+                const pctPpto = budgetVal !== 0 ? (diffPpto / Math.abs(budgetVal)) * 100 : 0;
+                const diffPrev = currentVal - prevVal;
+                const pctPrev = prevVal !== 0 ? (diffPrev / Math.abs(prevVal)) * 100 : 0;
 
-                const score = Math.abs(diffPrev) + Math.abs(diffPpto) * 0.5;
+                const score = this.comparisonMode === 'budget' ? Math.abs(diffPpto) : Math.abs(diffPrev);
 
-                const displayName = ind.id === 'margen_bruto' ? 'Margen Bruto (%)' : ind.name;
-
-                movers.push({ comp, ind: {name: displayName}, bVal, cVal, pVal, diffPpto, pctPpto, diffPrev, pctPrev, score, type: typeOverride });
+                moversSorted.push({
+                    entityName: ent.name,
+                    kpiName,
+                    diffPpto, pctPpto,
+                    diffPrev, pctPrev,
+                    score,
+                    type: kpiType,
+                    isRatio: kpiType.includes('ratio')
+                });
             });
         });
 
-        movers.sort((a, b) => b.score - a.score);
-        const topMovers = movers.slice(0, 10);
+        moversSorted.sort((a, b) => b.score - a.score);
+        const topMovers = moversSorted.slice(0, 10);
 
         let bodyHTML = '';
         topMovers.forEach(m => {
-            const isFavPpto = m.type === 'expense' ? m.diffPpto <= 0 : m.diffPpto >= 0;
-            const isFavPrev = m.type === 'expense' ? m.diffPrev <= 0 : m.diffPrev >= 0;
+            // Improvement Logic
+            // For RAI, Margen, Ebitda, Ventas -> Improvement if diff > 0
+            // For Costes, Estructura, Variables, Fidelizacion -> Improvement if diff < 0
+            let isFavPpto = m.diffPpto >= 0;
+            let isFavPrev = m.diffPrev >= 0;
+            
+            if (m.type === 'expense' || m.type === 'expense_ratio') {
+                isFavPpto = m.diffPpto <= 0;
+                isFavPrev = m.diffPrev <= 0;
+            }
 
-            const suffix = m.type === 'ratio' ? '%' : 'k€';
-            const formatVal = (val, t) => t === 'ratio' ? this.formatPercent(val) : this.formatEuro(val);
+            const suffix = m.isRatio ? '%' : 'k€';
+            const fv = (v) => m.isRatio ? this.formatPercent(v) : this.formatEuro(v);
+
+            const pptoCell = `<td class="${isFavPpto ? 'text-success' : 'text-danger'}">${m.diffPpto > 0 ? '+' : ''}${fv(m.diffPpto)}${suffix}</td>`;
+            const pptoPctCell = `<td class="${isFavPpto ? 'text-success' : 'text-danger'}">${m.pctPpto > 0 ? '+' : ''}${this.formatPercent(m.pctPpto)}%</td>`;
+            const prevCell = `<td class="${isFavPrev ? 'text-success' : 'text-danger'}">${m.diffPrev > 0 ? '+' : ''}${fv(m.diffPrev)}${suffix}</td>`;
+            const prevPctCell = `<td class="${isFavPrev ? 'text-success' : 'text-danger'}">${prevMonth ? (m.pctPrev > 0 ? '+' : '') + this.formatPercent(m.pctPrev) + '%' : '-'}</td>`;
 
             if (this.comparisonMode === 'budget') {
-                bodyHTML += `<tr>
-                    <td>${m.comp}</td>
-                    <td>${m.ind.name}</td>
-                    <td class="${isFavPpto ? 'text-success' : 'text-danger'}">${m.diffPpto > 0 ? '+' : ''}${formatVal(m.diffPpto, m.type)}${suffix}</td>
-                    <td class="${isFavPpto ? 'text-success' : 'text-danger'}">${this.formatPercent(m.pctPpto)}%</td>
-                </tr>`;
+                bodyHTML += `<tr><td>${m.entityName}</td><td>${m.kpiName}</td>${pptoCell}${pptoPctCell}${prevCell}${prevPctCell}</tr>`;
             } else {
-                bodyHTML += `<tr>
-                    <td>${m.comp}</td>
-                    <td>${m.ind.name}</td>
-                    <td class="${isFavPrev ? 'text-success' : 'text-danger'}">${m.diffPrev > 0 ? '+' : ''}${formatVal(m.diffPrev, m.type)}${suffix}</td>
-                    <td class="${isFavPrev ? 'text-success' : 'text-danger'}">${prevMonth ? (m.pctPrev > 0 ? '+' : '') + this.formatPercent(m.pctPrev) + '%' : '-'}</td>
-                </tr>`;
+                bodyHTML += `<tr><td>${m.entityName}</td><td>${m.kpiName}</td>${prevCell}${prevPctCell}${pptoCell}${pptoPctCell}</tr>`;
             }
         });
         tbody.innerHTML = bodyHTML;
     }
 
     // SharePoint Integration Configuration
-    SP_BASE_URL = "https://gtmgrupo.sharepoint.com/sites/GTM-IT_Pruebas_agentes_copilot";
-    SP_LIBRARY_PATH = "/sites/GTM-IT_Pruebas_agentes_copilot/Seguimiento Presupuesto";
+    SP_BASE_URL = "https://gtmgrupo.sharepoint.com/sites/GTM-GESTION_DOCUMENTAL";
+    SP_LIBRARY_PATH = "/sites/GTM-GESTION_DOCUMENTAL/Seguimiento Presupuesto";
 
     async fetchSPFolders() {
         const statusEl = document.getElementById('spStatusMsg');
@@ -1299,8 +1469,14 @@ class Dashboard {
             this.DATA.budget = newBudget;
             this.DATA.actuals = newActuals;
 
-            // Clean MOCK_DATA.months to exactly what we loaded
+            // Clean MOCK_DATA.months to exactly what we loaded, sorted canonically
             if (loadedMonths.length > 0) {
+                const MONTH_ORDER = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+                loadedMonths.sort((a, b) => {
+                    const aBase = a.split('-')[0];
+                    const bBase = b.split('-')[0];
+                    return MONTH_ORDER.indexOf(aBase) - MONTH_ORDER.indexOf(bBase);
+                });
                 this.MOCK_DATA.months = loadedMonths;
                 // Always default to the highest (last) loaded month per user request
                 this.selectedMonth = loadedMonths[loadedMonths.length - 1];
@@ -1453,11 +1629,12 @@ class Dashboard {
                     id = indicatorMap[indicatorName];
                 }
 
-                const value = rows[i][j] || 0;
+                const rawValue = rows[i][j] || 0;
+                const numValue = Number(rawValue);
 
                 if (id) {
                     if (targetObj[companyName][id] === undefined) {
-                        targetObj[companyName][id] = Number(value);
+                        targetObj[companyName][id] = isNaN(numValue) ? 0 : numValue;
                     }
                 }
             }
@@ -1482,26 +1659,29 @@ class Dashboard {
 
     generateInsights(totals, companies) {
         const container = document.getElementById('insightsContent');
-        if (!container) return; // Prevent "Cannot set properties of null" error
+        if (!container) return;
 
         container.innerHTML = "";
 
         // Insight 1: Main EBITDA impact
-        const devEbitda = totals.actual.ebitda_sin_gerenciamiento - totals.budget.ebitda_sin_gerenciamiento;
+        const ebitdaBudget = totals.budget.ebitda_sin_gerenciamiento || 0;
+        const ebitdaActual = totals.actual.ebitda_sin_gerenciamiento || 0;
+        const devEbitda = ebitdaActual - ebitdaBudget;
         const favorable = devEbitda >= 0;
+        const devEbitdaPct = ebitdaBudget !== 0 ? Math.abs((devEbitda / ebitdaBudget) * 100) : 0;
 
         const item1 = document.createElement('div');
         item1.className = `insight-item ${favorable ? 'favorable' : 'unfavorable'}`;
         item1.innerHTML = `
             <h4>Impacto EBITDA Mensual</h4>
-            <p>El EBITDA del grupo para ${this.selectedMonth} está un <strong>${Math.abs((devEbitda / totals.budget.ebitda_sin_gerenciamiento) * 100).toFixed(1)}%</strong> ${favorable ? 'por encima' : 'por debajo'} de lo presupuestado.</p>
+            <p>El EBITDA del grupo para ${this.selectedMonth} está un <strong>${devEbitdaPct.toFixed(1)}%</strong> ${favorable ? 'por encima' : 'por debajo'} de lo presupuestado.</p>
         `;
         container.appendChild(item1);
 
         // Insight 2: Top contributing company
         const rankings = companies.map(comp => {
-            const actual = this.DATA.actuals[comp] && this.DATA.actuals[comp][this.selectedMonth] ? this.DATA.actuals[comp][this.selectedMonth].ebitda_sin_gerenciamiento : 0;
-            const budget = this.DATA.budget[comp].ebitda_sin_gerenciamiento || 0;
+            const actual = this.DATA.actuals[comp]?.[this.selectedMonth]?.ebitda_sin_gerenciamiento || 0;
+            const budget = this.DATA.budget[comp]?.ebitda_sin_gerenciamiento || 0;
             const devPct = budget !== 0 ? ((actual - budget) / Math.abs(budget)) * 100 : 0;
             return { name: comp, val: actual, dev: devPct };
         }).sort((a, b) => b.dev - a.dev);
@@ -1514,7 +1694,7 @@ class Dashboard {
             item2.className = `insight-item ${top.dev > 0 ? 'favorable' : ''}`;
             item2.innerHTML = `
                 <h4>Top Contribuidor</h4>
-                <p><strong>${top.name}</strong> es la sociedad con mayor desviación favorable aportando €${(top.dev / 1000).toFixed(1)}k extra al EBITDA.</p>
+                <p><strong>${top.name}</strong> es la sociedad con mayor desviación favorable (${top.dev.toFixed(1)}% vs presupuesto EBITDA).</p>
             `;
             container.appendChild(item2);
 
@@ -1522,7 +1702,7 @@ class Dashboard {
             item3.className = `insight-item unfavorable`;
             item3.innerHTML = `
                 <h4>Punto Crítico</h4>
-                <p><strong>${bottom.name}</strong> presenta la mayor desviación negativa del mes (€${(bottom.dev / 1000).toFixed(1)}k).</p>
+                <p><strong>${bottom.name}</strong> presenta la mayor desviación negativa del mes (${bottom.dev.toFixed(1)}% vs presupuesto EBITDA).</p>
             `;
             container.appendChild(item3);
         }
