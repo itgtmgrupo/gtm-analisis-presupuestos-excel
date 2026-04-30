@@ -9,5 +9,8 @@
     "SP_SITE_HOST": "gtmgrupo.sharepoint.com",
     "SP_SITE_PATH": "/sites/GTM-IT_Pruebas_agentes_copilot",
     "SP_LIBRARY": "Seguimiento Presupuesto"
+  },
+  "Host": {
+    "CORS": "*"
   }
 }
