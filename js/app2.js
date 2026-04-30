@@ -69,9 +69,7 @@ class Dashboard {
         this.MOCK_DATA.areas.forEach(area => {
             if (this.selectedAreas.length === 0 || this.selectedAreas.includes(area.name)) {
                 area.companies.forEach(company => {
-                    if (company.toLowerCase().includes(this.searchQuery.toLowerCase())) {
-                        filteredCompanies.push(company);
-                    }
+                    filteredCompanies.push(company);
                 });
             }
         });
@@ -111,31 +109,7 @@ class Dashboard {
             this.update();
         });
 
-        // Local Upload handler (Temporal bypass while SP is fixed)
-        document.getElementById('localExcelUpload').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
 
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-                try {
-                    const arrayBuffer = evt.target.result;
-                    const dataUI8 = new Uint8Array(arrayBuffer);
-                    const workbook = XLSX.read(dataUI8, { type: 'array' });
-                    
-                    const success = this.processWorkbook(workbook);
-                    if (!success) {
-                        alert("❌ Estructura de Excel no válida. Verifica que exista la pestaña 'Presupuesto' o 'Ppto'.");
-                    } else {
-                        this.update();
-                        alert(`✅ ¡Carga local exitosa!\nMeses detectados: ${this.MOCK_DATA.months.join(', ')}`);
-                    }
-                } catch (error) {
-                    alert("❌ Error al leer el archivo Excel: " + error.message);
-                }
-            };
-            reader.readAsArrayBuffer(file);
-        });
 
         const toggleBtn = document.getElementById('matrixToggleBtn');
         if (toggleBtn) {
