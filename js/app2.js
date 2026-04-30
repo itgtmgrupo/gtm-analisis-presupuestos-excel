@@ -1265,13 +1265,20 @@ class Dashboard {
     SP_BASE_URL = "https://gtmgrupo.sharepoint.com/sites/GTM-GESTION_DOCUMENTAL";
     SP_LIBRARY_PATH = "/sites/GTM-GESTION_DOCUMENTAL/Seguimiento Presupuesto";
 
+    getApiBaseUrl() {
+        if (window.location.protocol === 'file:' || (window.location.hostname === 'localhost' && window.location.port !== '4280') || window.location.hostname === '127.0.0.1') {
+            return 'http://localhost:7071';
+        }
+        return '';
+    }
+
     async fetchSPFolders() {
         const statusEl = document.getElementById('spStatusMsg');
         const selectorEl = document.getElementById('spYearSelector');
         const btnEl = document.getElementById('btnLoadFromSP');
         
         try {
-            const url = `/api/GetFolders`;
+            const url = `${this.getApiBaseUrl()}/api/GetFolders`;
             const response = await fetch(url);
 
             if (!response.ok) {
@@ -1335,7 +1342,7 @@ class Dashboard {
         statusEl.style.color = "#64748b";
 
         try {
-            const url = `/api/GetExcel?year=${encodeURIComponent(year)}`;
+            const url = `${this.getApiBaseUrl()}/api/GetExcel?year=${encodeURIComponent(year)}`;
             const response = await fetch(url);
 
             if (!response.ok) {
