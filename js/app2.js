@@ -1271,23 +1271,15 @@ class Dashboard {
         const btnEl = document.getElementById('btnLoadFromSP');
         
         try {
-            const url = `${this.SP_BASE_URL}/_api/web/GetFolderByServerRelativeUrl('${this.SP_LIBRARY_PATH}')/Folders`;
-            
-            const response = await fetch(url, {
-                headers: { "Accept": "application/json;odata=verbose" }
-            });
+            const url = `/api/GetFolders`;
+            const response = await fetch(url);
 
             if (!response.ok) {
-                if (response.status === 401 || response.status === 403) {
-                    throw new Error("Sin permisos. Asegúrate de estar ejecutando este panel desde dentro de SharePoint y haber iniciado sesión.");
-                }
-                throw new Error(`Error HTTP: ${response.status}`);
+                const errText = await response.text();
+                throw new Error(`Error HTTP: ${response.status} - ${errText}`);
             }
 
-            const data = await response.json();
-            const folders = data.d.results
-                .map(f => f.Name)
-                .filter(name => name && name !== "Dashboard" && name !== "Forms" && !name.startsWith("_")); // Exclude system folders
+            const folders = await response.json();
 
             if (folders.length === 0) {
                 statusEl.textContent = "No se encontraron carpetas de años en el servidor.";
@@ -1312,8 +1304,10 @@ class Dashboard {
             statusEl.textContent = "Carpetas cargadas desde SharePoint. Listo.";
             statusEl.style.color = "#10b981";
 
-            // Attach event listener for the button
-            btnEl.addEventListener('click', () => {
+            // Attach event listener for the button (clone to avoid duplicate listeners)
+            const newBtn = btnEl.cloneNode(true);
+            btnEl.parentNode.replaceChild(newBtn, btnEl);
+            newBtn.addEventListener('click', () => {
                 const year = selectorEl.value;
                 if (!year) {
                     alert("Por favor, selecciona un año en el desplegable.");
@@ -1323,9 +1317,9 @@ class Dashboard {
             });
 
         } catch (error) {
-            console.error(error);
+            console.error("Error al cargar desde API:", error);
             selectorEl.innerHTML = '<option value="">Fallo de conexión</option>';
-            statusEl.textContent = `Modo Local Detectado (CORS) o Fallo Auth. Esto solo funciona si el HTML está subido a SharePoint.`;
+            statusEl.textContent = `Error cargando carpetas: ${error.message}`;
             statusEl.style.color = "#ef4444";
         }
     }
@@ -1337,40 +1331,23 @@ class Dashboard {
         btnEl.textContent = "Descargando...";
         btnEl.setAttribute('disabled', 'true');
         btnEl.style.opacity = '0.6';
-        statusEl.textContent = `Buscando Excel en la carpeta ${year}...`;
+        statusEl.textContent = `Descargando Excel de la carpeta ${year}...`;
         statusEl.style.color = "#64748b";
 
         try {
-            // 1. Get files inside the year folder
-            const filesUrl = `${this.SP_BASE_URL}/_api/web/GetFolderByServerRelativeUrl('${this.SP_LIBRARY_PATH}/${year}')/Files`;
-            const filesResponse = await fetch(filesUrl, {
-                headers: { "Accept": "application/json;odata=verbose" }
-            });
+            const url = `/api/GetExcel?year=${encodeURIComponent(year)}`;
+            const response = await fetch(url);
 
-            if (!filesResponse.ok) throw new Error("No se pudo acceder a la carpeta del año.");
-            
-            const filesData = await filesResponse.json();
-            const excelFiles = filesData.d.results.filter(f => f.Name.toLowerCase().endsWith('.xlsx') || f.Name.toLowerCase().endsWith('.xlsm'));
-
-            if (excelFiles.length === 0) {
-                throw new Error(`La carpeta "${year}" en SharePoint está vacía o no contiene archivos Excel (.xlsx).`);
+            if (!response.ok) {
+                let errText = await response.text();
+                try {
+                    const errObj = JSON.parse(errText);
+                    errText = errObj.error || errText;
+                } catch(e) {}
+                throw new Error(errText);
             }
 
-            // Pick the first Excel file found
-            const fileRelativeUrl = excelFiles[0].ServerRelativeUrl;
-            const fileName = excelFiles[0].Name;
-            
-            statusEl.textContent = `Descargando archivo: ${fileName}...`;
-
-            // 2. Download the binary stream of the file
-            const downloadUrl = `${this.SP_BASE_URL}/_api/web/GetFileByServerRelativeUrl('${fileRelativeUrl}')/$value`;
-            const downloadResponse = await fetch(downloadUrl, {
-                // Must not use odata=verbose for $value download as it is binary
-            });
-
-            if (!downloadResponse.ok) throw new Error("Fallo al descargar el archivo físico.");
-
-            const arrayBuffer = await downloadResponse.arrayBuffer();
+            const arrayBuffer = await response.arrayBuffer();
             
             statusEl.textContent = "Procesando Excel en memoria...";
 
@@ -1385,16 +1362,16 @@ class Dashboard {
 
             this.update();
 
-            statusEl.textContent = `¡Carga exitosa! (${fileName})`;
+            statusEl.textContent = `¡Carga exitosa!`;
             statusEl.style.color = "#10b981";
             btnEl.textContent = "Actualizar Datos";
 
         } catch (error) {
-            console.error("Error al cargar desde SP:", error);
+            console.error("Error al cargar desde API:", error);
             statusEl.textContent = `Error: ${error.message}`;
             statusEl.style.color = "#ef4444";
             btnEl.textContent = "Cargar Datos";
-            alert(`❌ Error interactuando con SharePoint:\n${error.message}`);
+            alert(`❌ Error cargando Excel desde la API:\n${error.message}`);
         } finally {
             btnEl.removeAttribute('disabled');
             btnEl.style.opacity = '1';
