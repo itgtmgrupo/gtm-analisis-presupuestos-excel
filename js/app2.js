@@ -28,7 +28,10 @@ class Dashboard {
     init() {
         this.renderFilters();
         this.attachEventListeners();
-        this.fetchSPFolders(); // Empezar a buscar las carpetas en SP nada más cargar
+        document.addEventListener("DOMContentLoaded", () => {
+            this.fetchSPFolders();
+        });
+        //this.fetchSPFolders(); // Empezar a buscar las carpetas en SP nada más cargar
         this.update();
     }
 
