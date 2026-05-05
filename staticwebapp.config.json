@@ -1,15 +1,14 @@
 {
-  "navigationFallback": {
-    "rewrite": "/index.html",
-    "exclude": ["/css/*", "/js/*", "/api/*", "*.png", "*.jpg", "*.ico"]
-  },
   "routes": [
     {
-      "route": "/api/*",
-      "allowedRoles": ["anonymous"]
+      "route": "/*",
+      "allowedRoles": ["authenticated"]
     }
   ],
-  "globalHeaders": {
-    "Cache-Control": "no-cache, no-store, must-revalidate"
+  "responseOverrides": {
+    "401": {
+      "statusCode": 302,
+      "redirect": "/.auth/login/aad"
+    }
   }
 }

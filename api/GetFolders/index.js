@@ -1,50 +1,41 @@
-/**
- * GetFolders — Azure Function
- * 
- * Devuelve un array JSON con los nombres de las carpetas (años)
- * dentro de la biblioteca "Seguimiento Presupuesto" en SharePoint.
- * 
- * GET /api/GetFolders → ["2025", "2026"]
- */
-const { listDriveChildren } = require("../shared/graphClient");
+import fetch from "node-fetch";
+import { getGraphToken } from "../_graph.js";
 
-module.exports = async function (context, req) {
-    context.log("GetFolders: invoked");
+export default async function (context, req) {
+  
+console.log({
+  tenant: process.env.GRAPH_TENANT_ID,
+  clientId: process.env.GRAPH_CLIENT_ID ? "OK" : "MISSING",
+  secret: process.env.GRAPH_CLIENT_SECRET ? "OK" : "MISSING"
+});
 
-    try {
-        // Listar hijos de la raíz del Drive
-        const items = await listDriveChildren("");
+  const token = await getGraphToken();
 
-        // Filtrar solo carpetas, excluir carpetas del sistema
-        const folders = items
-            .filter(item => item.folder)                      // Solo carpetas
-            .map(item => item.name)
-            .filter(name =>
-                name &&
-                name !== "Forms" &&
-                name !== "Dashboard" &&
-                !name.startsWith("_")
-            )
-            .sort();
+  // 1. Resolver siteId
+  const siteRes = await fetch(
+    `https://graph.microsoft.com/v1.0/sites/${process.env.SP_SITE_HOST}:${process.env.SP_SITE_PATH}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  const site = await siteRes.json();
 
-        context.log(`GetFolders: found ${folders.length} folders: ${folders.join(", ")}`);
+  // 2. Obtener drives
+  const drivesRes = await fetch(
+    `https://graph.microsoft.com/v1.0/sites/${site.id}/drives`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  const drives = await drivesRes.json();
 
-        context.res = {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(folders)
-        };
+  const drive = drives.value.find(d => d.name === process.env.SP_LIBRARY);
 
-    } catch (error) {
-        context.log.error("GetFolders error:", error.message);
+  // 3. Listar carpetas
+  const foldersRes = await fetch(
+    `https://graph.microsoft.com/v1.0/drives/${drive.id}/root/children`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
 
-        context.res = {
-            status: 500,
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                error: "Error accediendo a SharePoint vía Graph API",
-                detail: error.message
-            })
-        };
-    }
-};
+  const folders = (await foldersRes.json()).value
+    .filter(i => i.folder)
+    .map(i => i.name);
+
+  context.res = { body: folders };
+}

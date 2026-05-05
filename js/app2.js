@@ -1261,128 +1261,126 @@ class Dashboard {
         tbody.innerHTML = bodyHTML;
     }
 
-    // SharePoint Integration Configuration
-    SP_BASE_URL = "https://gtmgrupo.sharepoint.com/sites/GTM-GESTION_DOCUMENTAL";
-    SP_LIBRARY_PATH = "/sites/GTM-GESTION_DOCUMENTAL/Seguimiento Presupuesto";
-
-    getApiBaseUrl() {
-        if (window.location.protocol === 'file:' || (window.location.hostname === 'localhost' && window.location.port !== '4280') || window.location.hostname === '127.0.0.1') {
-            return 'http://localhost:7071';
-        }
-        return '';
-    }
+    API_FOLDERS_URL = "/api/GetFolders";
+    API_EXCEL_URL = "/api/GetExcel?year=";
 
     async fetchSPFolders() {
+        
         const statusEl = document.getElementById('spStatusMsg');
         const selectorEl = document.getElementById('spYearSelector');
         const btnEl = document.getElementById('btnLoadFromSP');
-        
-        try {
-            const url = `${this.getApiBaseUrl()}/api/GetFolders`;
-            const response = await fetch(url);
+        statusEl.textContent = "Consultando API…";
+        statusEl.style.color = "#64748b";
 
-            if (!response.ok) {
-                const errText = await response.text();
-                throw new Error(`Error HTTP: ${response.status} - ${errText}`);
-            }
+      try {
+        const response = await fetch(this.API_FOLDERS_URL, {
+          headers: { "Accept": "application/json" }
+        });
 
-            const folders = await response.json();
-
-            if (folders.length === 0) {
-                statusEl.textContent = "No se encontraron carpetas de años en el servidor.";
-                statusEl.style.color = "#ef4444";
-                return;
-            }
-
-            // Populate selector
-            selectorEl.innerHTML = '<option value="">Selecciona un año...</option>';
-            folders.forEach(f => {
-                const opt = document.createElement('option');
-                opt.value = f;
-                opt.textContent = f;
-                selectorEl.appendChild(opt);
-            });
-
-            selectorEl.removeAttribute('disabled');
-            btnEl.removeAttribute('disabled');
-            btnEl.style.cursor = 'pointer';
-            btnEl.style.opacity = '1';
-
-            statusEl.textContent = "Carpetas cargadas desde SharePoint. Listo.";
-            statusEl.style.color = "#10b981";
-
-            // Attach event listener for the button (clone to avoid duplicate listeners)
-            const newBtn = btnEl.cloneNode(true);
-            btnEl.parentNode.replaceChild(newBtn, btnEl);
-            newBtn.addEventListener('click', () => {
-                const year = selectorEl.value;
-                if (!year) {
-                    alert("Por favor, selecciona un año en el desplegable.");
-                    return;
-                }
-                this.fetchSPExcel(year);
-            });
-
-        } catch (error) {
-            console.error("Error al cargar desde API:", error);
-            selectorEl.innerHTML = '<option value="">Fallo de conexión</option>';
-            statusEl.textContent = `Error cargando carpetas: ${error.message}`;
-            statusEl.style.color = "#ef4444";
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            throw new Error("Sin permisos (API). Revisa autenticación/roles en la Static Web App.");
+          }
+          //throw new Error(`Error API (GetFolders): HTTP ${response.status}`);
+            let detail = "";
+            try { detail = await response.text(); } catch {}
+            throw new Error(`Error API (GetFolders): HTTP ${response.status}${detail ? " - " + detail : ""}`);
         }
+
+        const folders = await response.json();
+
+        const years = (folders || [])
+          .filter(name => name && name !== "Dashboard" && name !== "Forms" && !name.startsWith("_"));
+
+        if (years.length === 0) {
+          statusEl.textContent = "No se encontraron carpetas/años (API devolvió vacío).";
+          statusEl.style.color = "#ef4444";
+          return;
+        }
+
+        // Rellenar selector
+        selectorEl.innerHTML = 'Selecciona un año...';
+        years.forEach(y => {
+          const opt = document.createElement('option');
+          opt.value = y;
+          opt.textContent = y;
+          selectorEl.appendChild(opt);
+        });
+
+        selectorEl.removeAttribute('disabled');
+        btnEl.removeAttribute('disabled');
+        btnEl.style.cursor = 'pointer';
+        btnEl.style.opacity = '1';
+
+        statusEl.textContent = "Carpetas cargadas desde la API. Listo.";
+        statusEl.style.color = "#10b981";
+
+        // Importante: evita acumular listeners si se re-ejecuta fetchSPFolders
+        btnEl.onclick = () => {
+          const year = selectorEl.value;
+          if (!year) {
+            alert("Por favor, selecciona un año en el desplegable.");
+            return;
+          }
+          this.fetchSPExcel(year);
+        };
+
+      } catch (error) {
+        console.error(error);
+        selectorEl.innerHTML = 'Fallo de conexión';
+        statusEl.textContent = `Error accediendo a la API intermedia: ${error.message}`;
+        statusEl.style.color = "#ef4444";
+      }
     }
 
     async fetchSPExcel(year) {
-        const btnEl = document.getElementById('btnLoadFromSP');
-        const statusEl = document.getElementById('spStatusMsg');
-        
-        btnEl.textContent = "Descargando...";
-        btnEl.setAttribute('disabled', 'true');
-        btnEl.style.opacity = '0.6';
-        statusEl.textContent = `Descargando Excel de la carpeta ${year}...`;
-        statusEl.style.color = "#64748b";
 
-        try {
-            const url = `${this.getApiBaseUrl()}/api/GetExcel?year=${encodeURIComponent(year)}`;
-            const response = await fetch(url);
+      const btnEl = document.getElementById('btnLoadFromSP');
+      const statusEl = document.getElementById('spStatusMsg');
 
-            if (!response.ok) {
-                let errText = await response.text();
-                try {
-                    const errObj = JSON.parse(errText);
-                    errText = errObj.error || errText;
-                } catch(e) {}
-                throw new Error(errText);
-            }
+      btnEl.textContent = "Descargando...";
+      btnEl.setAttribute('disabled', 'true');
+      btnEl.style.opacity = '0.6';
+      statusEl.textContent = `Buscando Excel para el año ${year}...`;
+      statusEl.style.color = "#64748b";
 
-            const arrayBuffer = await response.arrayBuffer();
-            
-            statusEl.textContent = "Procesando Excel en memoria...";
+      try {
+        const downloadResponse = await fetch(`${this.API_EXCEL_URL}${encodeURIComponent(year)}`);
 
-            // 3. Process via existing SheetJS flow
-            const dataUI8 = new Uint8Array(arrayBuffer);
-            const workbook = XLSX.read(dataUI8, { type: 'array' });
-
-            const success = this.processWorkbook(workbook);
-            if (!success) {
-                throw new Error("El archivo no tiene la pestaña necesaria (Ppto/Presupuesto) ni el formato de celdas correcto.");
-            }
-
-            this.update();
-
-            statusEl.textContent = `¡Carga exitosa!`;
-            statusEl.style.color = "#10b981";
-            btnEl.textContent = "Actualizar Datos";
-
-        } catch (error) {
-            console.error("Error al cargar desde API:", error);
-            statusEl.textContent = `Error: ${error.message}`;
-            statusEl.style.color = "#ef4444";
-            btnEl.textContent = "Cargar Datos";
-            alert(`❌ Error cargando Excel desde la API:\n${error.message}`);
-        } finally {
-            btnEl.removeAttribute('disabled');
-            btnEl.style.opacity = '1';
+        if (!downloadResponse.ok) {
+          if (downloadResponse.status === 401 || downloadResponse.status === 403) {
+            throw new Error("Sin permisos (API). Revisa autenticación/roles en la Static Web App.");
+          }
+          throw new Error(`Error API (GetExcel): HTTP ${downloadResponse.status}`);
         }
+
+        const arrayBuffer = await downloadResponse.arrayBuffer();
+
+        statusEl.textContent = "Procesando Excel en memoria...";
+
+        const dataUI8 = new Uint8Array(arrayBuffer);
+        const workbook = XLSX.read(dataUI8, { type: 'array' });
+
+        const success = this.processWorkbook(workbook);
+        if (!success) {
+          throw new Error("El archivo no tiene la pestaña necesaria (Ppto/Presupuesto) o el formato esperado.");
+        }
+
+        this.update();
+        statusEl.textContent = `¡Carga exitosa! (Año ${year})`;
+        statusEl.style.color = "#10b981";
+        btnEl.textContent = "Actualizar Datos";
+
+      } catch (error) {
+        console.error("Error al cargar desde API:", error);
+        statusEl.textContent = `Error: ${error.message}`;
+        statusEl.style.color = "#ef4444";
+        btnEl.textContent = "Cargar Datos";
+        alert(`❌ Error cargando Excel desde la API:\n${error.message}`);
+      } finally {
+        btnEl.removeAttribute('disabled');
+        btnEl.style.opacity = '1';
+      }
     }
 
     processWorkbook(workbook) {
