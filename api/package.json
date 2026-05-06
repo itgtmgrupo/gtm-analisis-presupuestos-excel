@@ -1,9 +1,9 @@
 {
-  "name": "swa-api",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
+  "name": "dashboard-presupuesto-api",
+  "version": "1.0.1",
+  "description": "Azure Functions API for Dashboard Presupuesto ÔÇö Graph API proxy to SharePoint",
   "engines": {
-    "node": ">=18 <21"
-  }
+    "node": ">=14.0.0"
+  },
+  "dependencies": {}
 }
