@@ -1,5 +1,5 @@
 /**
- * graphClient.js — Autenticación y helpers para Microsoft Graph API
+ * graphClient.js ÔÇö Autenticaci├│n y helpers para Microsoft Graph API
  * 
  * Usa Client Credentials flow (app-only) para obtener tokens.
  * Cachea el token, Site ID y Drive ID para evitar llamadas repetidas.
@@ -13,13 +13,13 @@ const https = require("https");
 
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 
-// ── Cache en memoria (vive durante el ciclo de vida de la Function App) ──
+// ÔöÇÔöÇ Cache en memoria (vive durante el ciclo de vida de la Function App) ÔöÇÔöÇ
 let _cachedToken   = null;
 let _tokenExpiry   = 0;
 let _cachedSiteId  = null;
 let _cachedDriveId = null;
 
-// ── Leer y validar configuración desde variables de entorno ───────────
+// ÔöÇÔöÇ Leer y validar configuraci├│n desde variables de entorno ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 function getConfig() {
     const config = {
         tenantId:     process.env.GRAPH_TENANT_ID,
@@ -37,14 +37,14 @@ function getConfig() {
     if (missing.length > 0) {
         throw new Error(
             `Faltan variables de entorno: ${missing.join(", ")}. ` +
-            `Configúralas en Azure SWA > Configuration > Application Settings.`
+            `Config├║ralas en Azure SWA > Configuration > Application Settings.`
         );
     }
 
     return config;
 }
 
-// ── Helper: HTTPS request genérico (compatible con Node 14/16/18+) ────
+// ÔöÇÔöÇ Helper: HTTPS request gen├®rico (compatible con Node 14/16/18+) ÔöÇÔöÇÔöÇÔöÇ
 function httpsRequest(url, options = {}) {
     return new Promise((resolve, reject) => {
         const parsedUrl = new URL(url);
@@ -81,9 +81,9 @@ function httpsRequest(url, options = {}) {
     });
 }
 
-// ── Obtener Access Token (Client Credentials) ────────────────────────
+// ÔöÇÔöÇ Obtener Access Token (Client Credentials) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 async function getAccessToken(context) {
-    // Devolver token cacheado si aún es válido (con 5 min de margen)
+    // Devolver token cacheado si a├║n es v├ílido (con 5 min de margen)
     if (_cachedToken && Date.now() < _tokenExpiry - 300000) {
         if (context) context.log("graphClient: using cached token");
         return _cachedToken;
@@ -126,7 +126,7 @@ async function getAccessToken(context) {
     return _cachedToken;
 }
 
-// ── Fetch autenticado contra Graph ────────────────────────────────────
+// ÔöÇÔöÇ Fetch autenticado contra Graph ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 async function graphFetch(url, context, options = {}) {
     const token = await getAccessToken(context);
     const resp = await httpsRequest(url, {
@@ -139,7 +139,7 @@ async function graphFetch(url, context, options = {}) {
     return resp;
 }
 
-// ── Resolver Site ID ──────────────────────────────────────────────────
+// ÔöÇÔöÇ Resolver Site ID ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 async function getSiteId(context) {
     if (_cachedSiteId) return _cachedSiteId;
 
@@ -167,7 +167,7 @@ async function getSiteId(context) {
     return _cachedSiteId;
 }
 
-// ── Resolver Drive ID (biblioteca de documentos) ──────────────────────
+// ÔöÇÔöÇ Resolver Drive ID (biblioteca de documentos) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 async function getDriveId(context) {
     if (_cachedDriveId) return _cachedDriveId;
 
@@ -200,7 +200,7 @@ async function getDriveId(context) {
     return _cachedDriveId;
 }
 
-// ── Listar hijos (carpetas/archivos) de una ruta en el Drive ──────────
+// ÔöÇÔöÇ Listar hijos (carpetas/archivos) de una ruta en el Drive ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 async function listDriveChildren(path, context) {
     const driveId = await getDriveId(context);
 
@@ -224,7 +224,7 @@ async function listDriveChildren(path, context) {
     return data.value;
 }
 
-// ── Descargar contenido binario de un archivo por Item ID ──────────────
+// ÔöÇÔöÇ Descargar contenido binario de un archivo por Item ID ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 async function downloadDriveItem(itemId, context) {
     const driveId = await getDriveId(context);
     const url = `${GRAPH_BASE}/drives/${driveId}/items/${itemId}/content`;
@@ -232,7 +232,7 @@ async function downloadDriveItem(itemId, context) {
     if (context) context.log(`graphClient: downloading item ${itemId}`);
 
     // Graph devuelve 302 redirect al blob. https.request no sigue redirects,
-    // así que lo manejamos manualmente.
+    // as├¡ que lo manejamos manualmente.
     const resp = await graphFetch(url, context);
 
     // Si Graph devuelve 302, seguir el redirect

@@ -1,10 +1,10 @@
 /**
- * GetExcel — Azure Function
+ * GetExcel ÔÇö Azure Function
  * 
  * Descarga el primer archivo Excel (.xlsx / .xlsm) encontrado en la
- * carpeta del año indicado y lo devuelve como stream binario.
+ * carpeta del a├▒o indicado y lo devuelve como stream binario.
  * 
- * GET /api/GetExcel?year=2026 → binary (application/octet-stream)
+ * GET /api/GetExcel?year=2026 ÔåÆ binary (application/octet-stream)
  */
 const { listDriveChildren, downloadDriveItem } = require("../shared/graphClient");
 
@@ -15,7 +15,7 @@ module.exports = async function (context, req) {
         context.res = {
             status: 400,
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ error: "Falta el parámetro 'year'." })
+            body: JSON.stringify({ error: "Falta el par├ímetro 'year'." })
         };
         return;
     }
@@ -23,8 +23,8 @@ module.exports = async function (context, req) {
     context.log(`GetExcel: fetching Excel for year "${year}"`);
 
     try {
-        // 1. Listar archivos dentro de la carpeta del año
-        const items = await listDriveChildren(year);
+        // 1. Listar archivos dentro de la carpeta del a├▒o
+        const items = await listDriveChildren(year, context);
 
         // 2. Buscar el primer archivo Excel
         const excelFile = items.find(item =>
@@ -38,7 +38,7 @@ module.exports = async function (context, req) {
                 status: 404,
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    error: `No se encontró ningún archivo Excel en la carpeta "${year}".`,
+                    error: `No se encontr├│ ning├║n archivo Excel en la carpeta "${year}".`,
                     filesFound: items.filter(i => i.file).map(i => i.name)
                 })
             };
@@ -48,9 +48,9 @@ module.exports = async function (context, req) {
         context.log(`GetExcel: downloading "${excelFile.name}" (${excelFile.size} bytes)`);
 
         // 3. Descargar el contenido binario
-        const buffer = await downloadDriveItem(excelFile.id);
+        const buffer = await downloadDriveItem(excelFile.id, context);
 
-        context.log(`GetExcel: download complete — ${buffer.length} bytes`);
+        context.log(`GetExcel: download complete ÔÇö ${buffer.length} bytes`);
 
         // 4. Devolver como binario
         context.res = {

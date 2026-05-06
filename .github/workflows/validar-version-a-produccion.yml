@@ -1,0 +1,18 @@
+name: Validate PR to produccion
+
+on:
+  pull_request:
+    branches:
+      - produccion
+
+jobs:
+  validate-source-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure PR comes from desarrollo
+        run: |
+          echo "PR source branch: ${{ github.head_ref }}"
+          if [ "${{ github.head_ref }}" != "desarrollo" ]; then
+            echo "❌ ERROR: Solo se permite hacer merge a 'produccion' desde 'desarrollo'"
+            exit 1
+          fi
