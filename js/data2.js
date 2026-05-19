@@ -46,8 +46,8 @@ const MOCK_DATA = {
         { id: "amortizacion", name: "Amortización", type: "expense" },
         { id: "financieros", name: "Financieros", type: "expense" },
         { id: "financieros_intragrupo", name: "Financieros Intragrupo", type: "expense" },
-        { id: "pipeline", name: "Pipeline", type: "income" },
-        { id: "obra_en_curso", name: "Obra en Curso", type: "income" }
+        { id: "pipeline", name: "Pipeline", type: "expense" },
+        { id: "obra_en_curso", name: "Obra en Curso", type: "expense" }
     ]
 };
 

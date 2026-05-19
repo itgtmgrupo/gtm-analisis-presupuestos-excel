@@ -400,8 +400,8 @@ class Dashboard {
                 const isPositive = deviationAbs > 0;
                 let favorable = isPositive;
 
-                // For peso-estructura, since we forced absolute values, an increase (positive deviation) means we weigh MORE, which is WORSE.
-                if (id === 'peso-estructura') {
+                // For peso-estructura, pipeline and obra-en-curso: an increase is unfavorable
+                if (id === 'peso-estructura' || id === 'pipeline' || id === 'obra-en-curso') {
                     favorable = !isPositive;
                 }
 
@@ -478,7 +478,7 @@ class Dashboard {
         updateKPI('margen', margenReal, margenBud, margenPrev, 'ratio');
         updateKPI('ebitda', totals.actual.ebitda_sin_gerenciamiento || 0, totals.budget.ebitda_sin_gerenciamiento || 0, totals.prev_actual.ebitda_sin_gerenciamiento || 0, 'profit');
         updateKPI('ebitda-pct', ebitdaPctReal, ebitdaPctBud, ebitdaPctPrev, 'ratio');
-        updateKPI('pipeline', totals.actual.pipeline || 0, totals.budget.pipeline || 0, totals.prev_actual.pipeline || 0, 'income');
+        updateKPI('pipeline', totals.actual.pipeline || 0, totals.budget.pipeline || 0, totals.prev_actual.pipeline || 0, 'expense');
 
         // Fila 2
         updateKPI('costes-estructura', totals.actual.estructura || 0, totals.budget.estructura || 0, totals.prev_actual.estructura || 0, 'expense');
@@ -486,7 +486,19 @@ class Dashboard {
         updateKPI('ventas', ventasActual, ventasBudget, ventasPrev, 'income');
         updateKPI('variables', totals.actual.variables || 0, totals.budget.variables || 0, totals.prev_actual.variables || 0, 'expense');
         updateKPI('fidelizacion', totals.actual.fidelizacion || 0, totals.budget.fidelizacion || 0, totals.prev_actual.fidelizacion || 0, 'expense');
-        updateKPI('obra-en-curso', totals.actual.obra_en_curso || 0, totals.budget.obra_en_curso || 0, totals.prev_actual.obra_en_curso || 0, 'income');
+        updateKPI('obra-en-curso', totals.actual.obra_en_curso || 0, 0, totals.prev_actual.obra_en_curso || 0, 'expense');
+
+        // Obra en Curso no tiene presupuesto: mantener la etiqueta pero vaciar los datos
+        const ocCard = document.getElementById('kpi-obra-en-curso');
+        if (ocCard) {
+            const budgetCol = ocCard.querySelector('.comp-budget');
+            if (budgetCol) {
+                const valEl = budgetCol.querySelector('.comp-val');
+                if (valEl) { valEl.textContent = ''; valEl.className = 'kpi-sub-abs comp-val'; }
+                const trendEl = budgetCol.querySelector('.trend-budget');
+                if (trendEl) trendEl.style.display = 'none';
+            }
+        }
 
         document.querySelectorAll('.kpi-card').forEach(card => {
             card.classList.toggle('active', card.id === `kpi-${this.activeKpiId}`);
