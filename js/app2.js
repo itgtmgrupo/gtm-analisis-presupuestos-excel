@@ -249,6 +249,8 @@ class Dashboard {
             else if (this.activeKpiId === 'costes-estructura') { sumNominal += (dataObj.estructura || 0); }
             else if (this.activeKpiId === 'variables') { sumNominal += (dataObj.variables || 0); }
             else if (this.activeKpiId === 'fidelizacion') { sumNominal += (dataObj.fidelizacion || 0); }
+            else if (this.activeKpiId === 'pipeline') { sumNominal += (dataObj.pipeline || 0); }
+            else if (this.activeKpiId === 'obra-en-curso') { sumNominal += (dataObj.obra_en_curso || 0); }
             else if (this.activeKpiId === 'margen') { sumMargen += (dataObj.margen_bruto || 0); sumVentas += v; }
             else if (this.activeKpiId === 'ebitda-pct') { sumEbitda += (dataObj.ebitda_sin_gerenciamiento || 0); sumVentas += v; }
             else if (this.activeKpiId === 'peso-estructura') { sumEstructura += (dataObj.estructura || 0); sumVentas += v; }
@@ -476,6 +478,7 @@ class Dashboard {
         updateKPI('margen', margenReal, margenBud, margenPrev, 'ratio');
         updateKPI('ebitda', totals.actual.ebitda_sin_gerenciamiento || 0, totals.budget.ebitda_sin_gerenciamiento || 0, totals.prev_actual.ebitda_sin_gerenciamiento || 0, 'profit');
         updateKPI('ebitda-pct', ebitdaPctReal, ebitdaPctBud, ebitdaPctPrev, 'ratio');
+        updateKPI('pipeline', totals.actual.pipeline || 0, totals.budget.pipeline || 0, totals.prev_actual.pipeline || 0, 'income');
 
         // Fila 2
         updateKPI('costes-estructura', totals.actual.estructura || 0, totals.budget.estructura || 0, totals.prev_actual.estructura || 0, 'expense');
@@ -483,6 +486,7 @@ class Dashboard {
         updateKPI('ventas', ventasActual, ventasBudget, ventasPrev, 'income');
         updateKPI('variables', totals.actual.variables || 0, totals.budget.variables || 0, totals.prev_actual.variables || 0, 'expense');
         updateKPI('fidelizacion', totals.actual.fidelizacion || 0, totals.budget.fidelizacion || 0, totals.prev_actual.fidelizacion || 0, 'expense');
+        updateKPI('obra-en-curso', totals.actual.obra_en_curso || 0, totals.budget.obra_en_curso || 0, totals.prev_actual.obra_en_curso || 0, 'income');
 
         document.querySelectorAll('.kpi-card').forEach(card => {
             card.classList.toggle('active', card.id === `kpi-${this.activeKpiId}`);
@@ -545,7 +549,8 @@ class Dashboard {
             'ebitda': 'EBITDA (sin gerenc.)', 'ebitda-pct': 'EBITDA sin gerenc. (%)',
             'margen': 'Margen Bruto (%)', 'margen-eur': 'Margen Bruto (€)',
             'costes-estructura': 'Costes de Estructura', 'peso-estructura': 'Peso Estructura (%)',
-            'variables': 'Variables', 'fidelizacion': 'Planes de Fidelización'
+            'variables': 'Variables', 'fidelizacion': 'Planes de Fidelización',
+            'pipeline': 'Pipeline', 'obra-en-curso': 'Obra en Curso'
         };
         const titleEl = document.getElementById(isByArea ? 'meses-area-title' : 'meses-sociedad-title');
         if (titleEl) titleEl.textContent = `Evolución por Meses — ${kpiTitles[this.activeKpiId] || 'KPI'} (Total por ${groupLabel})`;
@@ -681,7 +686,9 @@ class Dashboard {
             'costes-estructura': 'Costes de Estructura',
             'peso-estructura': 'Peso de la Estructura (%)',
             'variables': 'Variables',
-            'fidelizacion': 'Planes de Fidelización'
+            'fidelizacion': 'Planes de Fidelización',
+            'pipeline': 'Pipeline',
+            'obra-en-curso': 'Obra en Curso'
         };
         const titleText = kpiTitles[this.activeKpiId] || 'Evolución Métrica';
 
@@ -1146,7 +1153,8 @@ class Dashboard {
         const allMainKpis = [
             'margen_antes_impuestos', 'margen_bruto', 'margen_bruto_pct', 
             'ebitda_sin_gerenciamiento', 'ebitda_sin_gerenciamiento_pct',
-            'estructura', 'estructura_pct', 'ventas', 'variables', 'fidelizacion'
+            'estructura', 'estructura_pct', 'ventas', 'variables', 'fidelizacion',
+            'pipeline', 'obra_en_curso'
         ];
 
         const targetedKpiIds = this.variacionesKpi ? [this.variacionesKpi] : allMainKpis;
@@ -1521,7 +1529,13 @@ class Dashboard {
             "margen antes de impuestos": "margen_antes_impuestos",
             "bai": "margen_antes_impuestos",
             "margen neto": "margen_neto",
-            "resultado neto": "margen_neto"
+            "resultado neto": "margen_neto",
+
+            // Pipeline & Obra en Curso
+            "pipeline": "pipeline",
+            "pipelin": "pipeline",
+            "obra en curso": "obra_en_curso",
+            "oc": "obra_en_curso"
         };
 
         const companyAliases = {

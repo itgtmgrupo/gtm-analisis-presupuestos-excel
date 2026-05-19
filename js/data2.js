@@ -45,7 +45,9 @@ const MOCK_DATA = {
         { id: "extraordinarios", name: "Extraordinarios", type: "both" },
         { id: "amortizacion", name: "Amortización", type: "expense" },
         { id: "financieros", name: "Financieros", type: "expense" },
-        { id: "financieros_intragrupo", name: "Financieros Intragrupo", type: "expense" }
+        { id: "financieros_intragrupo", name: "Financieros Intragrupo", type: "expense" },
+        { id: "pipeline", name: "Pipeline", type: "income" },
+        { id: "obra_en_curso", name: "Obra en Curso", type: "income" }
     ]
 };
 
@@ -73,7 +75,9 @@ function generateData() {
                 ebitda: 0,
                 ebitda_sin_gerenciamiento: 0,
                 margen_antes_impuestos: 0,
-                margen_neto: 0
+                margen_neto: 0,
+                pipeline: 0,
+                obra_en_curso: 0
             };
 
             // Secondary logic for budget
