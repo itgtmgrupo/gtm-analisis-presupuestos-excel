@@ -85,7 +85,7 @@
             </header>
 
             <!-- KPI Row 1 -->
-            <section class="kpi-grid" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+            <section class="kpi-grid" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
                 <div class="kpi-card" id="kpi-rai">
                     <span class="kpi-label">Rtdo. Antes Impuestos</span>
                     <span class="kpi-value" style="display:block; margin: 4px 0 8px;">0,00M€</span>
@@ -186,6 +186,27 @@
                             <div style="display: flex; align-items: center; gap: 6px;">
                                 <span class="kpi-sub-abs comp-val" style="font-size: 0.8rem; color:#1e293b;">Ref: 0%</span>
                                 <div class="kpi-trend trend-prev" data-type="ratio"><span class="trend-icon">↑</span><span class="trend-value">0,00%</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- card Pipeline (NUEVA) -->
+                <div class="kpi-card" id="kpi-pipeline">
+                    <span class="kpi-label">Pipeline</span>
+                    <span class="kpi-value" style="display:block; margin: 4px 0 8px;">0,00M€</span>
+                    <div class="kpi-comparisons" style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; transition: all 0.3s ease;">
+                        <div class="comp-col comp-budget" style="display: flex; flex-direction: column;">
+                            <span class="kpi-sub comp-label" style="font-size:0.75rem; color:#64748b;">vs Presupuesto</span>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span class="kpi-sub-abs comp-val" style="font-weight:600; font-size: 0.9rem;">0,00k€</span>
+                                <div class="kpi-trend trend-budget" data-type="expense"><span class="trend-icon">↑</span><span class="trend-value">0,00%</span></div>
+                            </div>
+                        </div>
+                        <div class="comp-col comp-prev" style="display: flex; flex-direction: column;">
+                            <span class="kpi-sub comp-label" style="font-size:0.75rem; color:#64748b;">vs Mes anterior</span>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span class="kpi-sub-abs comp-val" style="font-weight:600; font-size: 0.9rem;">0,00k€</span>
+                                <div class="kpi-trend trend-prev" data-type="expense"><span class="trend-icon">↑</span><span class="trend-value">0,00%</span></div>
                             </div>
                         </div>
                     </div>
@@ -293,6 +314,27 @@
                             <div style="display: flex; align-items: center; gap: 6px;">
                                 <span class="kpi-sub-abs comp-val" style="font-weight:600; font-size: 0.9rem;">0,00k€</span>
                                 <div class="kpi-trend trend-prev" data-type="expense"><span class="trend-icon">↓</span><span class="trend-value">0,00%</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- card Obra en Curso (NUEVA) -->
+                <div class="kpi-card" id="kpi-obra-en-curso">
+                    <span class="kpi-label">Obra en Curso</span>
+                    <span class="kpi-value" style="display:block; margin: 4px 0 8px;">0,00M€</span>
+                    <div class="kpi-comparisons" style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; transition: all 0.3s ease;">
+                        <div class="comp-col comp-budget" style="display: flex; flex-direction: column;">
+                            <span class="kpi-sub comp-label" style="font-size:0.75rem; color:#64748b;">vs Presupuesto</span>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span class="kpi-sub-abs comp-val" style="font-weight:600; font-size: 0.9rem;">0,00k€</span>
+                                <div class="kpi-trend trend-budget" data-type="expense"><span class="trend-icon">↑</span><span class="trend-value">0,00%</span></div>
+                            </div>
+                        </div>
+                        <div class="comp-col comp-prev" style="display: flex; flex-direction: column;">
+                            <span class="kpi-sub comp-label" style="font-size:0.75rem; color:#64748b;">vs Mes anterior</span>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span class="kpi-sub-abs comp-val" style="font-weight:600; font-size: 0.9rem;">0,00k€</span>
+                                <div class="kpi-trend trend-prev" data-type="expense"><span class="trend-icon">↑</span><span class="trend-value">0,00%</span></div>
                             </div>
                         </div>
                     </div>
@@ -433,6 +475,8 @@
                         <option value="ventas">Ventas Totales</option>
                         <option value="variables">Variables</option>
                         <option value="fidelizacion">Planes de Fidelización</option>
+                        <option value="pipeline">Pipeline</option>
+                        <option value="obra_en_curso">Obra en Curso</option>
                     </select>
                 </div>
                 <div class="card detal-card" style="margin-bottom: 2rem;">
