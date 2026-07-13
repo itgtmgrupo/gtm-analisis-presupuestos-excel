@@ -10,7 +10,7 @@ const MOCK_DATA = {
         },
         {
             name: "GTM Construcción",
-            companies: ["MATRA", "NEI", "NRT PORTUGAL", "NORTON SUECIA", "SEGITEC"]
+            companies: ["GTM CONSTRUCCION", "MATRA", "NEI", "NRT PORTUGAL", "NORTON SUECIA", "SEGITEC"]
         },
         {
             name: "GTM Latam",
