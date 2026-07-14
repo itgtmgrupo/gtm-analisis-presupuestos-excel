@@ -944,7 +944,7 @@ class Dashboard {
         const themes = {
             "GTM": { area: "#64748b", companies: { "GTM": "#94a3b8" } },
             "GTM Servicios Industriales": { area: "#1e3a8a", companies: { "TAMOIN": "#60a5fa", "TECNEST": "#1d4ed8" } },
-            "GTM Construcción": { area: "#14532d", companies: { "MATRA": "#4ade80", "NEI": "#22c55e", "NRT PORTUGAL": "#16a34a", "NORTON SUECIA": "#15803d", "SEGITEC": "#14532d" } },
+            "GTM Construcción": { area: "#14532d", companies: { "GTM CONSTRUCCION": "#86efac", "MATRA": "#4ade80", "NEI": "#22c55e", "NRT PORTUGAL": "#16a34a", "NORTON SUECIA": "#15803d", "SEGITEC": "#14532d" } },
             "GTM Latam": { area: "#7f1d1d", companies: { "NRT LATAM": "#f87171", "TAMOIN PERU": "#ef4444", "NRT PERU": "#dc2626", "NRT COLOMBIA+TALLERES": "#b91c1c", "NORTON ECUADOR": "#991b1b", "BIOTANK": "#fb923c", "NRT COM": "#f97316" } },
             "Participadas": { area: "#581c87", companies: { "ORBE": "#c084fc", "TARIFA": "#a855f7", "CTO NUCLEAR": "#9333ea", "DESNOR": "#7e22ce", "ARBOREA": "#6b21a8" } },
             "Ajustes conso": { area: "#d97706", companies: { "Ajustes conso": "#f59e0b" } }
@@ -1565,6 +1565,8 @@ class Dashboard {
             "ajustes": "Ajustes conso",
             "ajustesconsolidacion": "Ajustes conso",
             "tarifa": "TARIFA",
+            "gtmconstruccion": "GTM CONSTRUCCION",
+            "gtmconstrucción": "GTM CONSTRUCCION",
             "matra": "MATRA",
             "nei": "NEI",
             "nrtportugal": "NRT PORTUGAL",
@@ -1591,6 +1593,10 @@ class Dashboard {
             const cNorm = rawComp.toLowerCase().replace(/\s+/g, '');
             // Do not process 'Total' or 'Presupuesto' sum columns as independent companies
             if (cNorm.includes('total')) continue;
+            // Ignore aggregate/analysis columns that are NOT societies
+            // (e.g. the ETC / Presupuesto / Desviación block appended to some month sheets).
+            // These carry group-level figures and would inflate the aggregated totals.
+            if (cNorm === 'etc' || cNorm === 'presupuesto' || cNorm.startsWith('desv')) continue;
 
             let companyName = companyAliases[cNorm] || rawComp;
             
